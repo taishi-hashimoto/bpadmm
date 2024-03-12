@@ -29,11 +29,12 @@ trace = bpadmm_python(A+0j, y+0j, threshold=threshold, trace=True, xtol=1e-16)
 assert np.allclose(x.ravel(), trace["x"][:, -1])
 
 fig, ax = plt.subplots()
-ax.stem(x0, linefmt="k-", markerfmt="ko")
+ax.stem(x0.real, linefmt="k-", markerfmt="ko")
 # ax.plot(x0, c="k")
-ax.stem(x, linefmt="none", markerfmt="rx")
+ax.stem(x.real, linefmt="none", markerfmt="rx")
 
 fig.tight_layout()
+fig.savefig(join(dirname(__file__), "simple.png"))
 
 # %%
 
