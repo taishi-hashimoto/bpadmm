@@ -37,12 +37,14 @@ from bpadmm import basis_pursuit_admm
 # k: The number of snapshots.
 # A: 2-d matrix with the size (n, p).
 # y: 2-d matrix with the size (n, k).
+# x: 2-d matrix with the size (n, k).
 
 x, info = basis_pursuit_admm(
-    A,  # Observation matrix
-    y,  # Observation (measurement)
+    A,  # Observation matrix.
+    y,  # Observation (measurement).
     threshold,  # Soft threshold.
     # ... and some optional arguments ...
+    info=True,
 )
 
 ```
