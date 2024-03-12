@@ -8,12 +8,13 @@ Methodologies are briefly explained in [doc/intro_cs.ipynb](doc/intro_cs.ipynb).
 
 ### Dependencies
 
-- numpy
-- [Rust](https://www.rust-lang.org/tools/install)
 - [maturin](https://github.com/PyO3/maturin)
+- [Rust](https://www.rust-lang.org/tools/install)
 - [openblas](https://github.com/OpenMathLib/OpenBLAS)
+- [numpy](https://pypi.org/project/numpy/)
+- [tqdm](https://pypi.org/project/tqdm/)
 
-Tests also need [tqdm](https://github.com/tqdm/tqdm), matplotlib and [antarrlib](https://github.com/taishi-hashimoto/python-antarrlib).
+Tests also need [matplotlib](https://pypi.org/project/matplotlib/) and [antarrlib](https://github.com/taishi-hashimoto/python-antarrlib).
 
 ### Installation
 
