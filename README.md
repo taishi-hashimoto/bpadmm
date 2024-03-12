@@ -46,3 +46,7 @@ x, info = basis_pursuit_admm(
 )
 
 ```
+
+### Examples
+
+You can find some more examples in [test](./test) directory.
