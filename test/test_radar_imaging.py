@@ -88,9 +88,14 @@ result1 = np.atleast_2d(result1).T
 pytime = time.time() - t0
 
 t0 = time.time()
-result, info = basis_pursuit_admm(
-    A, y, threshold=lambda_,
-    maxiter=NITER, miniter=1000, tol=tol, info=True, progress=True, njobs=-1)
+result = []
+for ii in range(N):
+    y_ = x[ii, :, None]
+    x_, info = basis_pursuit_admm(
+        A, y_, threshold=lambda_,
+        maxiter=NITER, stepiter=100)
+    result.append(x_.ravel())
+result = np.atleast_2d(result).T
 rstime = time.time() - t0
 print(info)
 
