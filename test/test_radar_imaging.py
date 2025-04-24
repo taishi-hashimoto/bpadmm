@@ -76,6 +76,14 @@ lambda_ = 1e-4 * max_sigma
 NITER = 10000
 
 t0 = time.time()
+result, info = basis_pursuit_admm(
+    A, x, threshold=lambda_,
+    maxiter=NITER, stepiter=100)
+result = np.atleast_2d(result).T
+rstime = time.time() - t0
+print(info)
+
+t0 = time.time()
 result1 = []
 for ii in range(N):
     y_ = x[ii, :, None]
@@ -86,18 +94,6 @@ for ii in range(N):
     result1.append(x_.ravel())
 result1 = np.atleast_2d(result1).T
 pytime = time.time() - t0
-
-t0 = time.time()
-result = []
-for ii in range(N):
-    y_ = x[ii, :, None]
-    x_, info = basis_pursuit_admm(
-        A, y_, threshold=lambda_,
-        maxiter=NITER, stepiter=100)
-    result.append(x_.ravel())
-result = np.atleast_2d(result).T
-rstime = time.time() - t0
-print(info)
 
 print(pytime, rstime)
 assert np.allclose(result1, result)

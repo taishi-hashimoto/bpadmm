@@ -49,11 +49,12 @@ def basis_pursuit_admm(
     Parameters
     ==========
     A: np.ndarray
-        Observation matrix of the size (n, p).
-        n is the number of observation and p is the number of parameters.
+        Observation matrix of the size `(n, p)`.
+        `n` is the number of observation and `p` is the number of parameters.
         Usually `p > n`.
     y: np.ndarray
-        Observed values of the size (n, 1).
+        Observed values of the size `(b, n)`.
+        `b` is the number of batches which is processed sequentially.
     threshold: float
         Soft threshold, or the step size for update in ADMM.
     maxiter: int
@@ -64,14 +65,15 @@ def basis_pursuit_admm(
         Pseudo-inverse matrix of `A`, if given.
     """
     n, p = A.shape
-    assert y.shape == (n, 1)
+    nsamples, n_ = y.shape
+    assert n_ == n
 
     # Initialization.
     A = jnp.array(A)
     y = jnp.array(y)
-    x = jnp.zeros((p, 1), dtype=complex)
-    z = jnp.zeros((p, 1), dtype=complex)
-    u = jnp.zeros((p, 1), dtype=complex)
+    x = jnp.zeros((nsamples, p), dtype=complex)
+    z = jnp.zeros((nsamples, p), dtype=complex)
+    u = jnp.zeros((nsamples, p), dtype=complex)
 
     if Ai is None:
         A1 = jnp.linalg.pinv(A)
@@ -113,8 +115,7 @@ def basis_pursuit_admm(
             """Unflatten the state from JAX tree utilities."""
             return cls(*children)
 
-    @jax.jit
-    def loop(state: State):
+    def loop(y, state: State):
         """Main loop of the ADMM algorithm."""
 
         def cond(state: State):
@@ -163,25 +164,26 @@ def basis_pursuit_admm(
         return jax.lax.while_loop(cond, step, state)
 
     # Initialize state
+
     state = State(
-        i=0,
-        x=x,
+        i=jnp.zeros(nsamples, dtype=int),
+        x=x,  # shape (n_sample, p)
         z=z,
         u=u,
-        bad_count=0,
-        best_loss=np.inf,
+        bad_count=jnp.zeros(nsamples, dtype=int),
+        best_loss=jnp.full((nsamples,), np.inf),
         best_x=x,
-        mses=jnp.full(maxiter, np.inf),
+        mses=jnp.full((nsamples, maxiter), np.inf),
     )
 
     # Run the loop.
-    state = loop(state)
+    state = jax.vmap(loop, in_axes=(0, 0))(y, state)
 
     # Return results.
     return state.x, {
         "i": state.i - 1 - state.bad_count,
         "n": state.i,
-        "mse": state.mses[:state.i],
+        "mse": state.mses,
     }
 
 
