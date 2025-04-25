@@ -9,9 +9,7 @@ Methodologies are briefly explained in [doc/intro_cs.ipynb](doc/intro_cs.ipynb).
 
 ### Dependencies
 
-- [maturin](https://github.com/PyO3/maturin)
-- [Rust](https://www.rust-lang.org/tools/install)
-- [openblas](https://github.com/OpenMathLib/OpenBLAS)
+- [jax](https://docs.jax.dev/en/latest/index.html)
 - [numpy](https://pypi.org/project/numpy/)
 - [tqdm](https://pypi.org/project/tqdm/)
 
