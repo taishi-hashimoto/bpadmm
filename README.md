@@ -1,6 +1,7 @@
 # bpadmm
 
-This is a Python/Rust library that implements a solver for the Compressed Sensing on underdetermined linear systems. It is based on the Basis Pursuit with Alternating Direction Method of Multipliers (BP-ADMM).
+This is a Python library that implements a solver for the Compressed Sensing on underdetermined linear systems.
+It is based on the Basis Pursuit with Alternating Direction Method of Multipliers (BP-ADMM).
 
 Methodologies are briefly explained in [doc/intro_cs.ipynb](doc/intro_cs.ipynb).
 
@@ -18,10 +19,9 @@ Tests also need [matplotlib](https://pypi.org/project/matplotlib/) and [antarrli
 
 ### Installation
 
-Use `maturin` to build Rust lib, and `pip` to install Python frontend.
+Use pip:
 
 ```
-maturin build --release
 pip install .
 ```
 

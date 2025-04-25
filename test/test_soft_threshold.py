@@ -2,12 +2,12 @@ import matplotlib.pyplot as plt
 from matplotlib.colorbar import Colorbar
 import numpy as np
 from os.path import join, dirname
-from bpadmm._impl import _soft_threshold
+from bpadmm import soft_threshold
 
 
 def test_soft_threshold_real():
     x = np.linspace(-9, 9, 200)
-    y = _soft_threshold(x + 0j, 4).real  # workaround for real numbers...
+    y = soft_threshold(x + 0j, 4).real  # workaround for real numbers...
 
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.plot(x, y, "r-", label=r"$S_{\lambda = 4}(x)$")
@@ -25,7 +25,7 @@ def test_soft_threshold_real():
 def test_soft_threshold_complex():
     x = np.linspace(-10, 10)[:, None] + 1j * np.linspace(-10, 10)[None, :]
     cmap = plt.get_cmap("seismic", lut=11)
-    values = _soft_threshold(x, 4)
+    values = soft_threshold(x, 4)
 
     fig, ((ax_re, ax_im), (cax_re, cax_im)) = plt.subplots(
         2, 2,

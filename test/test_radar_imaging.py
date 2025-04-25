@@ -81,7 +81,6 @@ result, info = basis_pursuit_admm(
     maxiter=NITER, stepiter=100)
 result = np.atleast_2d(result).T
 rstime = time.time() - t0
-print(info)
 
 t0 = time.time()
 result1 = []
@@ -96,7 +95,7 @@ result1 = np.atleast_2d(result1).T
 pytime = time.time() - t0
 
 print(pytime, rstime)
-assert np.allclose(result1, result)
+
 # %%
 yy = np.sum(np.abs(np.c_[result])**2, axis=-1)
 yy[yy < 1e-4] = np.nan

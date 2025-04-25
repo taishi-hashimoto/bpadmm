@@ -1,18 +1,20 @@
 [build-system]
-requires = ["maturin>=1.4,<2.0"]
-build-backend = "maturin"
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "bpadmm"
-requires-python = ">=3.8"
-classifiers = [
-    "Programming Language :: Rust",
-    "Programming Language :: Python :: Implementation :: CPython",
-    "Programming Language :: Python :: Implementation :: PyPy",
+description = "Basis Pursuit by ADMM"
+authors = [
+  {name = "Taishi Hashimoto", email = "hashimoto.taishi@nipr.ac.jp"},
 ]
-dynamic = ["version"]
+version = "1.0"
+requires-python = ">= 3.7"
+dependencies = [
+    "numpy",
+    "jax",
+    "tqdm",
+]
 
-[tool.maturin]
-features = ["pyo3/extension-module"]
-python-source = "src-python"
-module-name = "bpadmm._impl"
+[tool.setuptools]
+package-dir = {"" = "src"}

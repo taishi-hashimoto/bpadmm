@@ -25,9 +25,6 @@ x, info = basis_pursuit_admm(A+0j, y+0j, threshold=threshold)
 #       check it.
 trace = bpadmm_python(A+0j, y+0j, threshold=threshold, trace=True, xtol=1e-16)
 
-# Check if results from Rust and Python coinsides.
-assert np.allclose(x.ravel(), trace["x"][:, -1])
-
 fig, ax = plt.subplots()
 ax.stem(x0.real, linefmt="k-", markerfmt="ko")
 # ax.plot(x0, c="k")
