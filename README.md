@@ -15,6 +15,9 @@ Methodologies are briefly explained in [doc/intro_cs.ipynb](doc/intro_cs.ipynb).
 
 Tests also need [matplotlib](https://pypi.org/project/matplotlib/) and [antarrlib](https://github.com/taishi-hashimoto/python-antarrlib).
 
+Optionally, you can setup GPUs if you have graphic cards to speed up the calculation.  
+Please refer to the [installation guide here](./INSTALL.md).
+
 ### Installation
 
 Use pip:
