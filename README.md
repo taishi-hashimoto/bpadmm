@@ -1,7 +1,26 @@
 # bpadmm
 
 This is a Python library that implements a solver for the Compressed Sensing on underdetermined linear systems.
-It is based on the Basis Pursuit with Alternating Direction Method of Multipliers (BP-ADMM).
+The algorithm is based on the Basis Pursuit (BP) with Alternating Direction Method of Multipliers (ADMM).
+
+## Methodologies
+
+Basis pursuit problem is defined as following sparse modeling:
+
+```
+minimize |x|_1
+    x
+subject to y = Ax
+```
+
+ADMM solves this problem by the following iterations:
+
+```Python
+A1 = A^T(A A^T)^(-1)  # pseudo inverse
+x = z - u + A1 @ (y - A @ (z - u))
+z = soft_threshold(x + u, threshold)
+u += x - z
+```
 
 Methodologies are briefly explained in [doc/intro_cs.ipynb](doc/intro_cs.ipynb).
 
