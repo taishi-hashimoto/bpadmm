@@ -18,9 +18,11 @@ x0 = np.random.permutation(x0)
 y = A @ x0
 # %%
 
+A1 = np.linalg.pinv(A)
+
 threshold = np.linalg.norm(A) * 0.001
 
-x, info = basis_pursuit_admm(A+0j, y+0j, threshold=threshold)
+x, info = basis_pursuit_admm(A+0j, y+0j, threshold=threshold, Ai=A1)
 # NOTE: xtol is set to very small value because basis_pursuit_admm doesn't
 #       check it.
 trace = bpadmm_python(A+0j, y+0j, threshold=threshold, trace=True, xtol=1e-16)
