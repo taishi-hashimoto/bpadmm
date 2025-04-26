@@ -2,7 +2,7 @@
 
 ## JAX INSTALLATION
 
-This library can be used only with CPUs, but using GPUs would result in the best performance.
+This library can be used only with CPUs, but using GPUs would result in the best performance.  
 Here, a typical installation steps of JAX library are described.
 
 ⇒ [Official guide (Installation - JAX documentation)](https://docs.jax.dev/en/latest/installation.html)
