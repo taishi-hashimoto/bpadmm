@@ -1,5 +1,6 @@
 "JAX implementation."
 
+import re
 from typing import Any
 from dataclasses import dataclass
 import numpy as np
@@ -24,6 +25,7 @@ def basis_pursuit_admm(
     stepiter: int = 100,
     patience: int = 10,
     Ai: np.ndarray = None,
+    device_kind: str = None,
 ) -> tuple[jnp.ndarray, dict[str, Any]]:
     """ADMM for basis pursuit problem.
 
@@ -63,21 +65,24 @@ def basis_pursuit_admm(
         Number of iterations to wait before stopping if no improvement in MSE found.
     Ai: np.ndarray
         Pseudo-inverse matrix of `A`, if given.
+    device_kind: str
+        Regex pattern for target devices.
+        Default is None, which will use all visible GPUs by default.
     """
     n, p = A.shape
     y = np.atleast_2d(y)
     is_col = y.shape[1] == 1
     if is_col:
         y = y.T
-    nsamples, n_ = y.shape
+    nbatches, n_ = y.shape
     assert n_ == n
 
     # Initialization.
     A = jnp.array(A)
     y = jnp.array(y)
-    x = jnp.zeros((nsamples, p), dtype=complex)
-    z = jnp.zeros((nsamples, p), dtype=complex)
-    u = jnp.zeros((nsamples, p), dtype=complex)
+    x = jnp.zeros((nbatches, p), dtype=complex)
+    z = jnp.zeros((nbatches, p), dtype=complex)
+    u = jnp.zeros((nbatches, p), dtype=complex)
 
     if Ai is None:
         A1 = jnp.linalg.pinv(A)
@@ -167,21 +172,49 @@ def basis_pursuit_admm(
         # Run the whole loop.
         return jax.lax.while_loop(cond, step, state)
 
+    devices = jax.devices()
+    if device_kind is not None:
+        devices = [d for d in devices if re.match(device_kind, d.device_kind, re.IGNORECASE)]    
+    n_devices = len(devices)
+
     # Initialize state
 
     state = State(
-        i=jnp.zeros(nsamples, dtype=int),
+        i=jnp.zeros(nbatches, dtype=int),
         x=x,  # shape (n_sample, p)
         z=z,
         u=u,
-        bad_count=jnp.zeros(nsamples, dtype=int),
-        best_loss=jnp.full((nsamples,), np.inf),
+        bad_count=jnp.zeros(nbatches, dtype=int),
+        best_loss=jnp.full((nbatches,), np.inf),
         best_x=x,
-        mses=jnp.full((nsamples, maxiter), np.inf),
+        mses=jnp.full((nbatches, maxiter), np.inf),
     )
 
     # Run the loop.
-    state = jax.vmap(loop, in_axes=(0, 0))(y, state)
+    if n_devices == 1 or nbatches == 1:  # Use vmap
+        state = jax.vmap(loop, in_axes=(0, 0))(y, state)
+    else:  # Use pmap
+        per_gpu = nbatches // n_devices
+        rem = nbatches - per_gpu * n_devices
+        nadd = 0
+        if rem != 0:
+            # Add small number of dummy tasks to make it divisible by n_devices
+            nadd = n_devices - rem
+            y = _extend(y, nadd)
+            state = jax.tree_map(lambda a: _extend(a, nadd), state)
+        # Split batches into devices.
+        y = _split(y, n_devices)
+        state = jax.tree_map(lambda a: _split(a, n_devices), state)
+        # Run batches per GPUs.
+        state = jax.pmap(
+            jax.vmap(loop, in_axes=(0, 0)),
+            axis_name="batch",
+            devices=devices
+        )(y, state)
+        # Collect result from GPUs.
+        state = jax.tree_map(_merge, state)
+        # Discard unnecessary part.
+        state = jax.tree_map(lambda a: a[:nbatches], state)
 
     x = state.x
     if is_col:
@@ -193,6 +226,27 @@ def basis_pursuit_admm(
         "n": state.i,
         "mse": state.mses,
     }
+
+
+def _split(arr, n_devices):
+    """Reshape arr so that its leading axis becomes [n_devices, batch_per_device, …]."""
+    b, *rest = arr.shape
+    if b % n_devices != 0:
+        raise ValueError(f"Batch size {b} not divisible by #devices {n_devices}")
+    per_dev = b // n_devices
+    return arr.reshape(n_devices, per_dev, *rest)
+
+
+def _merge(arr):
+    """Inverse of _split()."""
+    n_devices, per_dev, *rest = arr.shape
+    return arr.reshape(n_devices * per_dev, *rest)
+
+
+def _extend(arr, nadd):
+    """Extend rows by nadd"""
+    nsamples, *rest = arr.shape
+    return jnp.resize(arr, (nsamples + nadd, *rest))
 
 
 def sparse_dft(
