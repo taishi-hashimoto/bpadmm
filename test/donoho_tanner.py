@@ -1,0 +1,44 @@
+# %% Donoho-Tanner phase transition plot
+from os.path import join, dirname
+import numpy as np
+import matplotlib.pyplot as plt
+from tqdm.auto import tqdm
+from bpadmm import basis_pursuit_admm
+
+nseeds = 10
+
+p = 100  # Number of parameters of X.
+results = []
+for seed in tqdm(range(nseeds)):
+    rng = np.random.default_rng(seed)
+    for n in tqdm(range(1, p+1)):
+        A = rng.normal(size=(n, p))  # Observation matrix.
+        x = []
+        y = []
+        for s in range(1, p+1):
+            x0 = np.hstack((rng.normal(size=s), np.zeros(shape=p - s)))
+            x0 = rng.permutation(x0)
+            y.append(A @ x0)
+            x.append(x0)
+        x = np.c_[x]
+        y = np.c_[y]
+        x1, info = basis_pursuit_admm(A, y, threshold=1e-3)
+        result = [np.allclose(a, b, atol=1e-3, rtol=1e-3) for a, b in zip(x1, x)]
+        results.append((seed, n, result))
+
+# %%
+from collections import defaultdict
+
+# Collect results for each n.
+collected_by_n = defaultdict(list)
+for seed, n, result in results:
+    collected_by_n[n].append(result)
+
+recovery_rate = np.sum(list(collected_by_n.values()), axis=1) / nseeds * 100
+
+m = plt.imshow(recovery_rate, extent=(0, p, 0, p), origin="lower")
+plt.colorbar(m, format="%.0f%%", label="Recovery rate")
+plt.xlabel("Sparsity (No. non-zero elements)")
+plt.ylabel("No. observations")
+plt.tight_layout()
+# %%
