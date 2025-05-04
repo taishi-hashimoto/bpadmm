@@ -41,4 +41,5 @@ plt.colorbar(m, format="%.0f%%", label="Recovery rate")
 plt.xlabel("Sparsity (No. non-zero elements)")
 plt.ylabel("No. observations")
 plt.tight_layout()
+plt.savefig(join(dirname(__file__), "donoho_tanner.png"))
 # %%
