@@ -5,9 +5,9 @@ import matplotlib.pyplot as plt
 from tqdm.auto import tqdm
 from bpadmm import basis_pursuit_admm
 
-nseeds = 10
+nseeds = 2  # Number of random seeds.
+p = 20  # Number of parameters of X.
 
-p = 100  # Number of parameters of X.
 results = []
 with tqdm(total=nseeds * p) as pbar:
     for seed in range(nseeds):
@@ -23,7 +23,7 @@ with tqdm(total=nseeds * p) as pbar:
                 x.append(x0)
             x = np.c_[x]
             y = np.c_[y]
-            x1, info = basis_pursuit_admm(A, y, threshold=np.linalg.norm(A) * 1e-4)
+            x1, info = basis_pursuit_admm(A, y, threshold=np.linalg.norm(A, np.inf) * 1e-4)
             result = [np.allclose(a, b, atol=1e-6, rtol=1e-4) for a, b in zip(x1.real, x)]
             results.append((seed, n, result))
             pbar.update(1)
