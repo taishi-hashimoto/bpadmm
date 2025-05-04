@@ -71,9 +71,6 @@ def basis_pursuit_admm(
     """
     n, p = A.shape
     y = np.atleast_2d(y)
-    is_col = y.shape[1] == 1
-    if is_col:
-        y = y.T
     nbatches, n_ = y.shape
     assert n_ == n
 
@@ -217,8 +214,6 @@ def basis_pursuit_admm(
         state = jax.tree_map(lambda a: a[:nbatches], state)
 
     x = state.x
-    if is_col:
-        x = x.T
 
     # Return results.
     return x, {
