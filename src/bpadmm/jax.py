@@ -172,7 +172,7 @@ def basis_pursuit_admm(
     devices = jax.devices()
     if device_kind is not None:
         devices = [d for d in devices if re.match(device_kind, d.device_kind, re.IGNORECASE)]    
-    n_devices = len(devices)
+    ndevices = len(devices)
 
     # Initialize state
 
@@ -188,27 +188,27 @@ def basis_pursuit_admm(
     )
 
     # Run the loop.
-    if n_devices == 1 or nbatches == 1:  # Use vmap
+    if ndevices == 1 or nbatches == 1:  # Use vmap
         state = jax.vmap(loop, in_axes=(0, 0))(y, state)
     else:  # Use pmap
-        per_gpu = nbatches // n_devices
-        rem = nbatches - per_gpu * n_devices
+        batches_per_device = nbatches // ndevices
+        rem = nbatches - batches_per_device * ndevices
         nadd = 0
         if rem != 0:
             # Add small number of dummy tasks to make it divisible by n_devices
-            nadd = n_devices - rem
+            nadd = ndevices - rem
             y = _extend(y, nadd)
             state = jax.tree_map(lambda a: _extend(a, nadd), state)
         # Split batches into devices.
-        y = _split(y, n_devices)
-        state = jax.tree_map(lambda a: _split(a, n_devices), state)
-        # Run batches per GPUs.
+        y = _split(y, ndevices)
+        state = jax.tree_map(lambda a: _split(a, ndevices), state)
+        # Distribute tasks to devices.
         state = jax.pmap(
             jax.vmap(loop, in_axes=(0, 0)),
             axis_name="batch",
             devices=devices
         )(y, state)
-        # Collect result from GPUs.
+        # Collect result from devices.
         state = jax.tree_map(_merge, state)
         # Discard unnecessary part.
         state = jax.tree_map(lambda a: a[:nbatches], state)
@@ -223,22 +223,22 @@ def basis_pursuit_admm(
     }
 
 
-def _split(arr, n_devices):
-    """Reshape arr so that its leading axis becomes [n_devices, batch_per_device, …]."""
+def _split(arr: jax.Array, ndevices: int):
+    """Reshape arr so that its leading axis becomes [ndevices, batches_per_device, …]."""
     b, *rest = arr.shape
-    if b % n_devices != 0:
-        raise ValueError(f"Batch size {b} not divisible by #devices {n_devices}")
-    per_dev = b // n_devices
-    return arr.reshape(n_devices, per_dev, *rest)
+    if b % ndevices != 0:
+        raise ValueError(f"Batch size {b} not divisible by #devices {ndevices}")
+    batches_per_device = b // ndevices
+    return arr.reshape(ndevices, batches_per_device, *rest)
 
 
-def _merge(arr):
+def _merge(arr: jax.Array):
     """Inverse of _split()."""
-    n_devices, per_dev, *rest = arr.shape
-    return arr.reshape(n_devices * per_dev, *rest)
+    ndevices, batches_per_device, *rest = arr.shape
+    return arr.reshape(ndevices * batches_per_device, *rest)
 
 
-def _extend(arr, nadd):
+def _extend(arr: jax.Array, nadd: int):
     """Extend rows by nadd"""
     nsamples, *rest = arr.shape
     return jnp.resize(arr, (nsamples + nadd, *rest))
