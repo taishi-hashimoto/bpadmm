@@ -9,22 +9,25 @@ nseeds = 10
 
 p = 100  # Number of parameters of X.
 results = []
-for seed in tqdm(range(nseeds)):
-    rng = np.random.default_rng(seed)
-    for n in tqdm(range(1, p+1)):
-        A = rng.normal(size=(n, p))  # Observation matrix.
-        x = []
-        y = []
-        for s in range(1, p+1):
-            x0 = np.hstack((rng.normal(size=s), np.zeros(shape=p - s)))
-            x0 = rng.permutation(x0)
-            y.append(A @ x0)
-            x.append(x0)
-        x = np.c_[x]
-        y = np.c_[y]
-        x1, info = basis_pursuit_admm(A, y, threshold=1e-3)
-        result = [np.allclose(a, b, atol=1e-3, rtol=1e-3) for a, b in zip(x1, x)]
-        results.append((seed, n, result))
+with tqdm(total=nseeds * p) as pbar:
+    for seed in range(nseeds):
+        rng = np.random.default_rng(seed)
+        for n in range(1, p+1):
+            A = rng.normal(size=(n, p))  # Observation matrix.
+            x = []
+            y = []
+            for s in range(1, p+1):
+                x0 = np.hstack((rng.normal(size=s), np.zeros(shape=p - s)))
+                x0 = rng.permutation(x0)
+                y.append(A @ x0)
+                x.append(x0)
+            x = np.c_[x]
+            y = np.c_[y]
+            x1, info = basis_pursuit_admm(A, y, threshold=np.linalg.norm(A) * 1e-4)
+            result = [np.allclose(a, b, atol=1e-6, rtol=1e-4) for a, b in zip(x1.real, x)]
+            results.append((seed, n, result))
+            pbar.update(1)
+            pbar.set_description(f"seed={seed}, n={n}, y.shape={y.shape}")
 
 # %%
 from collections import defaultdict
