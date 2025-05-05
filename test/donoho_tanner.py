@@ -57,7 +57,11 @@ plt.plot(s_max(g)*p, delta(g)*p, "r-", lw=2, zorder=10)
 plt.colorbar(m, format="%.0f%%", label="Recovery rate")
 plt.xlabel("No. non-zero elements")
 plt.ylabel("No. observations")
+<<<<<<< HEAD
 plt.title(f"No. tries = {nseeds}")
+=======
+plt.title(f"No. tries = {nseeds}, $p$ = {p}")
+>>>>>>> c6dd2705feb33bc44294334b809198d7b9041ba8
 plt.tight_layout()
 plt.savefig(join(dirname(__file__), "recovery_rate.png"))
 
