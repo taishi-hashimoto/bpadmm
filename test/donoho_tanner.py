@@ -42,8 +42,10 @@ df_ave = df.groupby(["n", "s"]).mean()
 df_ave.sort_index(inplace=True)
 # Recovery rate
 recovery_rate = df.groupby(["n", "s"]).mse_true.aggregate(lambda x: (x < 1e-6).mean()).values.reshape(n, s) * 100
-# %% https://statweb.rutgers.edu/PCB71/donoho_tanner_phase_transition.html
+# %% Theoretical curve from below notebook:
+# https://statweb.rutgers.edu/PCB71/donoho_tanner_phase_transition.html
 from scipy.stats import norm
+
 f = norm.pdf
 Phi = norm.cdf
 
@@ -57,11 +59,7 @@ plt.plot(s_max(g)*p, delta(g)*p, "r-", lw=2, zorder=10)
 plt.colorbar(m, format="%.0f%%", label="Recovery rate")
 plt.xlabel("No. non-zero elements")
 plt.ylabel("No. observations")
-<<<<<<< HEAD
 plt.title(f"No. tries = {nseeds}")
-=======
-plt.title(f"No. tries = {nseeds}, $p$ = {p}")
->>>>>>> c6dd2705feb33bc44294334b809198d7b9041ba8
 plt.tight_layout()
 plt.savefig(join(dirname(__file__), "recovery_rate.png"))
 
