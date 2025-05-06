@@ -70,6 +70,7 @@ def basis_pursuit_admm(
         Default is None, which will use all visible GPUs by default.
     """
     n, p = A.shape
+    ndims = np.ndim(y)
     y = np.atleast_2d(y)
     nbatches, n_ = y.shape
     assert n_ == n
@@ -214,6 +215,9 @@ def basis_pursuit_admm(
         state = jax.tree_map(lambda a: a[:nbatches], state)
 
     x = state.x
+    
+    if ndims == 1:
+        x = x.ravel()
 
     # Return results.
     return x, {
