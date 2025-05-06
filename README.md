@@ -85,12 +85,19 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 You can find some more examples under [test](./test) directory.
 
-#### Sparse modeling example in radar imaging
+### Recovery rate 
 
-- [test/test_radar_imaging.py](test/test_radar_imaging.py)  
+The number of non-zero elements vs. observations have a tradeoff for the perfect recovery rate of the original signal.
+This test tries to reproduce this characteristic curve with a very simple setting; a Gaussian random observation matrices and Gaussian random original signals.
+
+- [test/recovery_rate.py](test/recovery_rate.py)
+
+![recovery_rate](doc/recovery_rate.png)
+
+### Sparse modeling example in radar imaging
+
+- [test/radar_imaging.py](test/radar_imaging.py)  
 
 |Nonadaptive beamforming                       |Sparse modeling                         |
 |----------------------------------------------|----------------------------------------|
 |![nonadaptive](doc/bpadmm_fourier_imaging.png)|![bpadmm](doc/bpadmm_sparse_imaging.png)|
-
-
