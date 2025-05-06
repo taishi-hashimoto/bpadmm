@@ -76,9 +76,9 @@ lambda_ = 1e-4 * max_sigma
 NITER = 10000
 
 t0 = time.time()
-result, info = basis_pursuit_admm(
+result = basis_pursuit_admm(
     A, x, threshold=lambda_,
-    maxiter=NITER, stepiter=100)
+    maxiter=NITER, stepiter=100, info=False)
 result = np.atleast_2d(result).T
 rstime = time.time() - t0
 

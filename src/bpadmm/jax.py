@@ -26,7 +26,8 @@ def basis_pursuit_admm(
     patience: int = 10,
     Ai: np.ndarray = None,
     device_kind: str = None,
-) -> tuple[jnp.ndarray, dict[str, Any]]:
+    info: bool = False,
+) -> jnp.ndarray | tuple[jnp.ndarray, dict[str, Any]]:
     """ADMM for basis pursuit problem.
 
     Basis pursuit problem is defined as following sparse modeling:
@@ -220,11 +221,14 @@ def basis_pursuit_admm(
         x = x.ravel()
 
     # Return results.
-    return x, {
-        "i": state.i - 1 - state.bad_count,
-        "n": state.i,
-        "mse": state.mses,
-    }
+    if info:
+        return x, {
+            "i": state.i - 1 - state.bad_count,
+            "n": state.i,
+            "mse": state.mses,
+        }
+    else:
+        return x
 
 
 def _split(arr: jax.Array, ndevices: int):
