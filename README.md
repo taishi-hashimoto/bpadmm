@@ -70,6 +70,17 @@ x, info = basis_pursuit_admm(
 
 ```
 
+### Notes for multi-GPU environment
+
+If your environment has multiple different GPUs, JAX can fail to load the same
+kernel onto different kind of devices.  
+In that case, specify target devices like this:
+
+```python
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+```
+
 ## Examples
 
 You can find some more examples under [test](./test) directory.
