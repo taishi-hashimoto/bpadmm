@@ -1,4 +1,4 @@
-# %% Donoho-Tanner phase transition plot of the basis pursuit problem
+# %% Something like Donoho-Tanner phase transition plot of the basis pursuit problem
 from os.path import join, dirname
 import pandas as pd
 import numpy as np
