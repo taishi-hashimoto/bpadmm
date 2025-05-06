@@ -13,18 +13,18 @@ results = []
 with tqdm(total=nseeds * p) as pbar:
     for seed in range(nseeds):
         rng = np.random.default_rng(seed)
-        for n in range(1, p+1):
+        for n in range(1, p+1):  # Number of observations.
             A = rng.normal(size=(n, p))  # Observation matrix.
             x = []
             y = []
-            for s in range(1, p+1):
+            for s in range(1, p+1):  # Number of non-zero elements.
                 x0 = np.hstack((rng.normal(size=s), np.zeros(shape=p - s)))
                 x0 = rng.permutation(x0)
                 y.append(A @ x0)
                 x.append(x0)
             x = np.c_[x]
             y = np.c_[y]
-            x1, info = basis_pursuit_admm(A, y, threshold=np.linalg.norm(A, np.inf) * 1e-4, device_kind="tesla")
+            x1, info = basis_pursuit_admm(A, y, threshold=np.linalg.norm(A, np.inf) * 1e-4)
             mse = np.sum((x1.real - x)**2, axis=-1)
             for i, s in enumerate(range(1, p+1)):
                 results.append({
