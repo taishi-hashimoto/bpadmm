@@ -69,7 +69,7 @@ def basis_pursuit_admm(
         Default is False.
     """
     n, p = A.shape
-    assert y.shape == (n, 1)
+    y = np.reshape(y, (-1, 1))
 
     A1 = np.linalg.pinv(A)
 
