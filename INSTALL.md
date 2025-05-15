@@ -60,6 +60,7 @@ sudo apt-get --purge remove cuda-*
 List the appropriate drivers for your environment:
 
 ```
+sudo apt install ubuntu-drivers-common
 ubuntu-drivers devices
 ```
 
