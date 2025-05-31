@@ -9,8 +9,8 @@ from antarrlib.decibel import dB
 
 
 N = 128
-factor = 10
-decimation = 2
+factor = 50
+decimation = 5
 K = factor * N // decimation
 
 t = np.arange(N) / N
@@ -38,7 +38,7 @@ ffttime += time() - now
 pfx = np.sum(np.abs(np.fft.fftshift(fx, axes=-1))**2, axis=0)
 
 now = time()
-ox, f, info = ocft(xx, factor, maxiter=10000, stepiter=1, patience=10, info=True, axis=-1, decimation=decimation, dt=1/K)
+ox, f, info = ocft(xx, factor, maxiter=100, stepiter=100, patience=10, info=True, axis=-1, decimation=decimation, dt=1/K)
 ocftime += time() - now
 pox += np.sum(np.abs(ox)**2, axis=0)
 

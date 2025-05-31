@@ -107,14 +107,15 @@ def basis_pursuit_admm(
         bad_count: int
         best_loss: float
         best_x: jnp.ndarray
-        mses: jnp.ndarray
+        diff_x: jnp.ndarray
+        l1_norm: jnp.ndarray
 
         def tree_flatten(self):
             """Flatten the state for JAX tree utilities."""
             children = (
                 self.i, self.x, self.z, self.u,
                 self.bad_count, self.best_loss,
-                self.best_x, self.mses)
+                self.best_x, self.diff_x, self.l1_norm)
             aux_data = None
             return children, aux_data
 
@@ -146,14 +147,15 @@ def basis_pursuit_admm(
             # Run ADMM iterations for stepiter.
             x, z, u = jax.lax.fori_loop(0, stepiter, admm, (state.x, state.z, state.u))
 
-            # Reconstruct the signal and calculate the error.
-            e = y - A.dot(x)
-            # Compute MSE.
-            mse = jnp.sum(jnp.real(e * jnp.conj(e)))
+            # diff of x
+            diff_x = jnp.linalg.norm(x - state.x)
+            
+            # L1 norm of x
+            l1_norm = jnp.sum(jnp.abs(x))
 
-            # Check if the new MSE is better than the best MSE so far.
-            is_improving = mse < state.best_loss
-            best_loss = jnp.where(is_improving, mse, state.best_loss)
+            # Check if the new L1 norm is better than the best L1 norm so far.
+            is_improving = diff_x < state.best_loss
+            best_loss = jnp.where(is_improving, diff_x, state.best_loss)
             best_x = jnp.where(is_improving, x, state.best_x)
             bad_count = jnp.where(is_improving, 0, state.bad_count + 1)
             # Update state
@@ -165,7 +167,8 @@ def basis_pursuit_admm(
                 bad_count=bad_count,
                 best_loss=best_loss,
                 best_x=best_x,
-                mses=state.mses.at[state.i].set(mse),
+                diff_x=state.diff_x.at[state.i].set(diff_x),
+                l1_norm=state.l1_norm.at[state.i].set(l1_norm),
             )
 
         # Run the whole loop.
@@ -186,7 +189,8 @@ def basis_pursuit_admm(
         bad_count=jnp.zeros(nbatches, dtype=int),
         best_loss=jnp.full((nbatches,), np.inf),
         best_x=x,
-        mses=jnp.full((nbatches, maxiter), np.inf),
+        diff_x=jnp.full((nbatches, maxiter), np.inf),
+        l1_norm=jnp.full((nbatches, maxiter), np.inf),
     )
 
     # Run the loop.
@@ -225,7 +229,8 @@ def basis_pursuit_admm(
         return x, {
             "i": state.i - 1 - state.bad_count,
             "n": state.i,
-            "mse": state.mses,
+            "diff_x": state.diff_x,
+            "l1_norm": state.l1_norm,
         }
     else:
         return x
