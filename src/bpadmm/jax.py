@@ -27,6 +27,8 @@ def basis_pursuit_admm(
     Ai: np.ndarray = None,
     device_kind: str = None,
     info: bool = False,
+    atol: float = 1e-4,
+    rtol: float = 1e-3,
 ) -> jnp.ndarray | tuple[jnp.ndarray, dict[str, Any]]:
     """ADMM for basis pursuit problem.
 
@@ -95,48 +97,19 @@ def basis_pursuit_admm(
     z = jax.device_put(z)
     u = jax.device_put(u)
 
-    # State of the loop.
-    @jax.tree_util.register_pytree_node_class
-    @dataclass
-    class State:
-        "State of the loop."
-        i: int
-        x: jnp.ndarray
-        z: jnp.ndarray
-        u: jnp.ndarray
-        bad_count: int
-        best_loss: float
-        best_x: jnp.ndarray
-        diff_x: jnp.ndarray
-        l1_norm: jnp.ndarray
-
-        def tree_flatten(self):
-            """Flatten the state for JAX tree utilities."""
-            children = (
-                self.i, self.x, self.z, self.u,
-                self.bad_count, self.best_loss,
-                self.best_x, self.diff_x, self.l1_norm)
-            aux_data = None
-            return children, aux_data
-
-        @classmethod
-        def tree_unflatten(cls, _, children):
-            """Unflatten the state from JAX tree utilities."""
-            return cls(*children)
-
     def loop(y, state: State):
         """Main loop of the ADMM algorithm."""
 
         def cond(state: State):
             "Stopping condition."
             # Stop if maximum iterations or no improvement in MSE for `patience` iterations.
-            return jnp.logical_and(state.i < maxiter, state.bad_count < patience)
+            return (state.i < maxiter) & (state.bad_count < patience) & jnp.logical_not(state.eval_subopt)
 
-        def step(state: State):
+        def body(state: State):
             "Each step of the loop."
 
             def admm(_, val):
-                "ADMM iteration."
+                "ADMM single step."
                 x, z, u = val
                 v = z - u
                 x = v + A1 @ (y - A @ v)
@@ -147,17 +120,32 @@ def basis_pursuit_admm(
             # Run ADMM iterations for stepiter.
             x, z, u = jax.lax.fori_loop(0, stepiter, admm, (state.x, state.z, state.u))
 
-            # diff of x
-            diff_x = jnp.linalg.norm(x - state.x)
-            
-            # L1 norm of x
-            l1_norm = jnp.sum(jnp.abs(x))
+            # Evaluates convergence and residuals.
 
-            # Check if the new L1 norm is better than the best L1 norm so far.
-            is_improving = diff_x < state.best_loss
-            best_loss = jnp.where(is_improving, diff_x, state.best_loss)
-            best_x = jnp.where(is_improving, x, state.best_x)
-            bad_count = jnp.where(is_improving, 0, state.bad_count + 1)
+            # Suboptimality.
+            subopt = jnp.linalg.norm(state.x - x)
+
+            # L1 norm (objective function value).
+            l1_norm = jnp.linalg.norm(x, ord=1)
+
+            # Primal residual.
+            # NOTE: In compressed sensing, `Ax - y` is by definition zero, so it cannot be used.
+            primal_residual = jnp.linalg.norm(x - z)
+
+            # Dual residual.
+            dual_residual = jnp.linalg.norm(state.z - z)
+
+            # Current loss.
+            curr_loss = jnp.array([subopt, l1_norm, primal_residual, dual_residual])
+            eval_subopt = subopt < atol + rtol*jnp.maximum(jnp.linalg.norm(state.x), jnp.linalg.norm(x))
+
+            # Check if the new losses are better than the best losses so far.
+
+            is_improving_each = curr_loss < state.best_loss
+            is_improving_any = jnp.any(is_improving_each)
+            best_loss = jnp.where(is_improving_each, curr_loss, state.best_loss)
+            best_x = jnp.where(is_improving_any, x, state.best_x)
+            bad_count = jnp.where(is_improving_any, 0, state.bad_count + 1)
             # Update state
             return State(
                 i=state.i + 1,
@@ -167,12 +155,15 @@ def basis_pursuit_admm(
                 bad_count=bad_count,
                 best_loss=best_loss,
                 best_x=best_x,
-                diff_x=state.diff_x.at[state.i].set(diff_x),
+                diff_x=state.diff_x.at[state.i].set(subopt),
                 l1_norm=state.l1_norm.at[state.i].set(l1_norm),
+                res_prim=state.res_prim.at[state.i].set(primal_residual),
+                res_dual=state.res_dual.at[state.i].set(dual_residual),
+                eval_subopt=eval_subopt,
             )
 
         # Run the whole loop.
-        return jax.lax.while_loop(cond, step, state)
+        return jax.lax.while_loop(cond, body, state)
 
     devices = jax.devices()
     if device_kind is not None:
@@ -183,14 +174,17 @@ def basis_pursuit_admm(
 
     state = State(
         i=jnp.zeros(nbatches, dtype=int),
-        x=x,  # shape (n_sample, p)
+        x=x,  # shape (nbatches, p)
         z=z,
         u=u,
         bad_count=jnp.zeros(nbatches, dtype=int),
-        best_loss=jnp.full((nbatches,), np.inf),
+        best_loss=jnp.full((nbatches, 4), np.inf),
         best_x=x,
         diff_x=jnp.full((nbatches, maxiter), np.inf),
         l1_norm=jnp.full((nbatches, maxiter), np.inf),
+        res_prim=jnp.full((nbatches, maxiter), np.inf),
+        res_dual=jnp.full((nbatches, maxiter), np.inf),
+        eval_subopt=jnp.full((nbatches,), False),
     )
 
     # Run the loop.
@@ -219,7 +213,8 @@ def basis_pursuit_admm(
         # Discard unnecessary part.
         state = jax.tree_map(lambda a: a[:nbatches], state)
 
-    x = state.x
+    # Restore the best result.
+    x = state.best_x
     
     if ndims == 1:
         x = x.ravel()
@@ -227,13 +222,46 @@ def basis_pursuit_admm(
     # Return results.
     if info:
         return x, {
-            "i": state.i - 1 - state.bad_count,
-            "n": state.i,
-            "diff_x": state.diff_x,
-            "l1_norm": state.l1_norm,
+            "i": state.i - state.bad_count,
+            "state": state,
         }
     else:
         return x
+
+
+# State of the loop.
+@jax.tree_util.register_pytree_node_class
+@dataclass
+class State:
+    "State of the loop."
+    i: int
+    x: jnp.ndarray
+    z: jnp.ndarray
+    u: jnp.ndarray
+    bad_count: int
+    best_loss: jnp.ndarray
+    best_x: jnp.ndarray
+    diff_x: jnp.ndarray
+    l1_norm: jnp.ndarray
+    res_prim: jnp.ndarray
+    res_dual: jnp.ndarray
+    eval_subopt: bool
+
+    def tree_flatten(self):
+        """Flatten the state for JAX tree utilities."""
+        children = (
+            self.i, self.x, self.z, self.u,
+            self.bad_count, self.best_loss,
+            self.best_x, self.diff_x, self.l1_norm, self.res_prim, self.res_dual,
+            self.eval_subopt
+        )
+        aux_data = None
+        return children, aux_data
+
+    @classmethod
+    def tree_unflatten(cls, _, children):
+        """Unflatten the state from JAX tree utilities."""
+        return cls(*children)
 
 
 def _split(arr: jax.Array, ndevices: int):
@@ -298,7 +326,7 @@ def make_ocft_matrix(
     w = np.arange(nt)[:, None] * index[None, :] * 2 * np.pi / nf
     # Inverse Fourier transform matrix.
     freq = np.fft.fftfreq(nf, dt)
-    return np.exp(1j * w), freq[index]
+    return np.exp(1j * w) / np.sqrt(nt), freq[index]
     
 
 
@@ -364,7 +392,7 @@ def ocft(
         x = A.conj().dot(y)
     else:
         if threshold is None:
-            threshold = 1e-3 * np.linalg.norm(A)
+            threshold = 1e-3
         x, _info = basis_pursuit_admm(
             A, y, threshold,
             maxiter=maxiter, stepiter=stepiter, patience=patience,

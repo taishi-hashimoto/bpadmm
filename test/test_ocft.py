@@ -10,7 +10,7 @@ from antarrlib.decibel import dB
 
 N = 128
 factor = 50
-decimation = 5
+decimation = 1
 K = factor * N // decimation
 
 t = np.arange(N) / N
@@ -38,7 +38,7 @@ ffttime += time() - now
 pfx = np.sum(np.abs(np.fft.fftshift(fx, axes=-1))**2, axis=0)
 
 now = time()
-ox, f, info = ocft(xx, factor, maxiter=100, stepiter=100, patience=10, info=True, axis=-1, decimation=decimation, dt=1/K)
+ox, f, info = ocft(xx, factor, threshold=0.1, maxiter=1000, stepiter=100, patience=10, info=True, axis=-1, decimation=decimation, dt=1/K)
 ocftime += time() - now
 pox += np.sum(np.abs(ox)**2, axis=0)
 
@@ -71,4 +71,28 @@ ax.plot(
 
 fig.savefig(join(dirname(__file__), "bpadmm_dft.png"))
 
+# %%
+state = info["state"]
+fig, axes = plt.subplots(2, 2, figsize=(10, 3))
+ax = axes[0, 0]
+ax.set_yscale("log")
+ax.grid()
+ax.plot(state.diff_x.T)
+ax.set_title("Convergence of x")
+ax = axes[0, 1]
+ax.set_yscale("log")
+ax.grid()
+ax.plot(state.l1_norm.T)
+ax.set_title("Convergence of l1")
+ax = axes[1, 0]
+ax.set_yscale("log")
+ax.grid()
+ax.plot(state.res_prim.T)
+ax.set_title("Primal Residual")
+ax = axes[1, 1]
+ax.set_yscale("log")
+ax.grid()
+ax.plot(state.res_dual.T)
+ax.set_title("Dual Residual")
+fig.tight_layout()
 # %%
