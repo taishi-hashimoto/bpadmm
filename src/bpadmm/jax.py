@@ -8,19 +8,10 @@ import jax
 import jax.numpy as jnp
 
 
-def soft_threshold(x: jnp.ndarray, threshold: float) -> jnp.ndarray:
-    """Soft thresholding function for JAX.
-
-    This also works for complex inputs.
-    """
-    a = jnp.fmax(jnp.abs(x) - threshold, 0)
-    return a / (a + threshold) * x
-
-
 def basis_pursuit_admm(
     A: np.ndarray,
     y: np.ndarray,
-    threshold: float,
+    threshold: float | np.ndarray,
     maxiter: int = 1000,
     stepiter: int = 100,
     patience: int = 10,
@@ -29,7 +20,7 @@ def basis_pursuit_admm(
     info: bool = False,
     atol: float = 1e-4,
     rtol: float = 1e-3,
-) -> jnp.ndarray | tuple[jnp.ndarray, dict[str, Any]]:
+) -> 'BpADMMResult':
     """ADMM for basis pursuit problem.
 
     Basis pursuit problem is defined as following sparse modeling:
@@ -62,6 +53,8 @@ def basis_pursuit_admm(
         `b` is the number of batches which is processed sequentially.
     threshold: float
         Soft threshold, or the step size for update in ADMM.
+        If an array is given, each element is used for each step of ADMM,
+        It should have the same size as `maxiter * stepiter`.
     maxiter: int
         Maximum number of iterations.
     patience: int
@@ -77,6 +70,14 @@ def basis_pursuit_admm(
     y = np.atleast_2d(y)
     nbatches, n_ = y.shape
     assert n_ == n, f"A.shape = {A.shape}, y.shape = {y.shape}, y.shape[1] = {n_} != A.shape[0] = {n}"
+
+    if isinstance(threshold, float):
+        # If threshold is a float, create an array of the same size as the number of iterations.
+        threshold = jnp.full((maxiter * stepiter,), threshold, dtype=jnp.float32)
+    else:
+        # If threshold is an array, it should have the same size as the number of iterations.
+        threshold = jnp.array(threshold, dtype=jnp.float32)
+        assert threshold.shape == (maxiter * stepiter,), f"Threshold {threshold.shape} does not match the total iteration number {(maxiter * stepiter,)}."
 
     # Initialization.
     A = jnp.array(A)
@@ -108,12 +109,13 @@ def basis_pursuit_admm(
         def body(state: State):
             "Each step of the loop."
 
-            def admm(_, val):
+            def admm(i, val):
                 "ADMM single step."
+                j = state.i * stepiter + i
                 x, z, u = val
                 v = z - u
                 x = v + A1 @ (y - A @ v)
-                z = soft_threshold(x + u, threshold)
+                z = soft_threshold(x + u, threshold[j])
                 u = u + x - z
                 return x, z, u
 
@@ -219,21 +221,77 @@ def basis_pursuit_admm(
     if ndims == 1:
         x = x.ravel()
 
+    # Status of the method.
+    status = np.zeros(nbatches, dtype=int)  # Default status is 0: maximum iterations reached
+    status[state.eval_subopt] = 1  # Suboptimality reached
+    status[state.bad_count >= patience] = 2  # Early stopping due to no improvement
+
     # Return results.
-    if info:
-        return x, {
-            "i": state.i - state.bad_count,
-            "state": state,
-        }
-    else:
-        return x
+    return BpADMMResult(
+        x=x,
+        status=status,
+        nit=state.i,
+        state=state
+    )
+
+def soft_threshold(x: jnp.ndarray, threshold: float) -> jnp.ndarray:
+    """Soft thresholding function for JAX.
+
+    This also works for complex inputs.
+    """
+    a = jnp.fmax(jnp.abs(x) - threshold, 0)
+    return a / (a + threshold) * x
 
 
-# State of the loop.
+def cosine_decay_schedule(total_steps, thr_beg=1.0, thr_end=0.0):
+    """Cosine decay soft threshold schedule.
+    
+    Parameters
+    ----------
+    total_steps : int
+        Total number of steps (iterations).
+    thr_beg : float
+        Initial soft threshold (maximum).
+    thr_end : float
+        Final soft threshold (minimum).
+        
+    Returns
+    -------
+    jnp.ndarray
+        Soft threshold schedule of shape (total_steps,).
+    """
+    steps = jnp.arange(total_steps)
+    cosine_decay = 0.5 * (1 + jnp.cos(jnp.pi * steps / total_steps))
+    learning_rates = thr_end + (thr_beg - thr_end) * cosine_decay
+    return learning_rates
+
+
+@dataclass
+class BpADMMResult:
+    x: np.ndarray
+    """Solution vector of the basis pursuit ADMM algorithm."""
+
+    status: np.ndarray
+    """Status of the algorithm for each batch, indicating convergence or failure.
+
+    0: Exceeded maximum iterations.
+    1: suboptimality reached.
+    2: Early stopping due to no improvement
+    """
+
+    nit: int
+    """Number of iterations performed for each batch."""
+    
+    state: 'State'
+    """Raw state of the ADMM loop, containing various metrics and results.
+    
+    This is JAX's pytree."""
+
+
 @jax.tree_util.register_pytree_node_class
 @dataclass
 class State:
-    "State of the loop."
+    "State of ADMM loop."
     i: int
     x: jnp.ndarray
     z: jnp.ndarray
@@ -285,7 +343,7 @@ def _extend(arr: jax.Array, nadd: int):
     return jnp.resize(arr, (nsamples + nadd, *rest))
 
 
-def make_ocft_matrix(
+def ocft_matrix(
     nt: int,
     dt: float = 1,
     factor: int = 1,
@@ -382,7 +440,7 @@ def ocft(
     if A is None:
         # The number of time samples.
         nt = np.shape(y)[axis]
-        A, f = make_ocft_matrix(nt, dt=dt, factor=factor, decimation=decimation, seed=seed)
+        A, f = ocft_matrix(nt, dt=dt, factor=factor, decimation=decimation, seed=seed)
 
     if Ai is None:
         Ai = np.linalg.pinv(A)
@@ -393,17 +451,21 @@ def ocft(
     else:
         if threshold is None:
             threshold = 1e-3
-        x, _info = basis_pursuit_admm(
+        elif isinstance(threshold, tuple):
+            thr_min, thr_max = threshold
+            threshold = cosine_decay_schedule(
+                maxiter * stepiter, thr_beg=thr_max, thr_end=thr_min)
+        result = basis_pursuit_admm(
             A, y, threshold,
             maxiter=maxiter, stepiter=stepiter, patience=patience,
             Ai=Ai, info=info, device_kind=device_kind)
-
+        x = result.x
     if is_t:
         x = x.T
     if is_1d:
         x = x.ravel()
 
     if info:
-        return x, f, _info
+        return x, f, result
     else:
         return x, f

@@ -38,7 +38,7 @@ ffttime += time() - now
 pfx = np.sum(np.abs(np.fft.fftshift(fx, axes=-1))**2, axis=0)
 
 now = time()
-ox, f, info = ocft(xx, factor, threshold=0.1, maxiter=1000, stepiter=100, patience=10, info=True, axis=-1, decimation=decimation, dt=1/K)
+ox, f, info = ocft(xx, factor, threshold=(0.1, 0.1), maxiter=1000, stepiter=100, patience=10, info=True, axis=-1, decimation=decimation, dt=1/K)
 ocftime += time() - now
 pox += np.sum(np.abs(ox)**2, axis=0)
 
@@ -72,7 +72,7 @@ ax.plot(
 fig.savefig(join(dirname(__file__), "bpadmm_dft.png"))
 
 # %%
-state = info["state"]
+state = info.state
 fig, axes = plt.subplots(2, 2, figsize=(10, 3))
 ax = axes[0, 0]
 ax.set_yscale("log")
