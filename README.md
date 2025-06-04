@@ -60,13 +60,14 @@ from bpadmm import basis_pursuit_admm
 # y: 2-d matrix with the size (n, k).
 # x: 2-d matrix with the size (n, k).
 
-x, info = basis_pursuit_admm(
+result = basis_pursuit_admm(
     A,  # Observation matrix.
     y,  # Observation (measurement).
     threshold,  # Soft threshold.
-    # ... and some optional arguments ...
-    info=True,
 )
+
+# Suboptimal solusion
+result.x
 
 ```
 
