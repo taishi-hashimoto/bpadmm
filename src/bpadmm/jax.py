@@ -1,5 +1,4 @@
-"JAX implementation."
-
+"JAX implementation of Basis Pursuit by ADMM."
 import re
 from typing import Any
 from dataclasses import dataclass
@@ -16,10 +15,10 @@ def basis_pursuit_admm(
     stepiter: int = 100,
     patience: int = 10,
     Ai: np.ndarray = None,
-    device_kind: str = None,
     atol: float = 1e-4,
     rtol: float = 1e-3,
     init_x: np.ndarray | bool | None = None,
+    device_kind: str = None,
 ) -> 'BpADMMResult':
     """ADMM for basis pursuit problem.
 
@@ -31,13 +30,14 @@ def basis_pursuit_admm(
     subject to y = Ax
     ```
 
-    ADMM solves this problem by the following iterations:
+    ADMM solves this problem by following iteration procedure:
 
     ```Python
     A1 = A^T(A A^T)^(-1)  # pseudo inverse
-    x = z - u + A1 @ (y - A @ (z - u))
-    z = soft_threshold(x + u, threshold)
-    u += x - z
+    while not converged:
+        x = z - u + A1 @ (y - A @ (z - u))
+        z = soft_threshold(x + u, threshold)
+        u += x - z
     ```
 
     This function is a JAX implementation of the above algorithm.
@@ -53,17 +53,38 @@ def basis_pursuit_admm(
         `b` is the number of batches which is processed sequentially.
     threshold: float
         Soft threshold, or the step size for update in ADMM.
-        If an array is given, each element is used for each step of ADMM,
-        It should have the same size as `maxiter * stepiter`.
+        If an array is given, each element is used for each step of ADMM.
+        In that case, it should have the same size as `maxiter * stepiter`.
     maxiter: int
-        Maximum number of iterations.
+        Maximum number of evaluation of the terminate condition.
+    stepiter: int
+        Number of iterations in each step of ADMM.
+        The total number of iterations is `maxiter * stepiter`.
     patience: int
-        Number of iterations to wait before stopping if no improvement in MSE found.
+        Number of iterations to wait before stopping if no improvement found.
     Ai: np.ndarray
         Pseudo-inverse matrix of `A`, if given.
+        If not specified, it will be computed by `jnp.linalg.pinv(A)`.
+    atol: float
+        Absolute tolerance for convergence.
+        Default is 1e-4.
+    rtol: float
+        Relative tolerance for convergence.
+        Default is 1e-3.
+    init_x: np.ndarray | bool
+        Initial value for `x`.
+        If `True`, L2 guess, i.e., `A1 @ y` is used.
+        If `False` or `None`, zero vector is used.
+        Default is `None`.
     device_kind: str
         Regex pattern for target devices.
         Default is None, which will use all visible GPUs by default.
+
+    Returns
+    =======
+    BpADMMResult
+        Result of the ADMM algorithm, containing the solution `x`, status, messages, and other metrics.
+        See `BpADMMResult` for details.
     """
     n, p = A.shape
     ndims = np.ndim(y)
@@ -98,13 +119,15 @@ def basis_pursuit_admm(
         else:
             # If init_x is given, use it as the initial value.
             x = jnp.array(init_x)
-        if x.shape != (nbatches, p):
-            raise ValueError(f"init_x shape {x.shape} does not match (nbatches, p) = {(nbatches, p)}.")
+        try:
+            x = x.reshape(nbatches, p).astype(complex)
+        except Exception as e:
+            raise ValueError(f"init_x shape {x.shape} does not match (nbatches, p) = {(nbatches, p)}.") from e
 
-    def loop(y, state: State):
+    def loop(y, state: BpADMMState):
         """Main loop of the ADMM algorithm."""
 
-        def cond(state: State):
+        def cond(state: BpADMMState):
             "Stopping condition."
             # Stop if maximum iterations or no improvement in MSE for `patience` iterations.
             return (
@@ -116,7 +139,7 @@ def basis_pursuit_admm(
                 )
             )
 
-        def body(state: State):
+        def body(state: BpADMMState):
             "Each step of the loop."
 
             def admm(i, val):
@@ -159,7 +182,7 @@ def basis_pursuit_admm(
             best_x = jnp.where(is_improving_any, x, state.best_x)
             bad_count = jnp.where(is_improving_any, 0, state.bad_count + 1)
             # Update state
-            return State(
+            return BpADMMState(
                 i=state.i + 1,
                 x=x,
                 z=z,
@@ -183,8 +206,7 @@ def basis_pursuit_admm(
     ndevices = len(devices)
 
     # Initialize state
-
-    state = State(
+    state = BpADMMState(
         i=jnp.zeros(nbatches, dtype=int),
         x=x,  # shape (nbatches, p)
         z=z,
@@ -251,6 +273,7 @@ def basis_pursuit_admm(
         state=state
     )
 
+
 def soft_threshold(x: jnp.ndarray, threshold: float) -> jnp.ndarray:
     """Soft thresholding function for JAX.
 
@@ -302,7 +325,7 @@ class BpADMMResult:
     nit: int
     """Number of iterations performed for each batch."""
     
-    state: 'State'
+    state: 'BpADMMState'
     """Raw state of the ADMM loop, containing various metrics and results.
     
     This is JAX's pytree."""
@@ -325,7 +348,7 @@ class BpADMMResult:
 
 @jax.tree_util.register_pytree_node_class
 @dataclass
-class State:
+class BpADMMState:
     "State of ADMM loop."
     i: int
     x: jnp.ndarray
@@ -391,6 +414,9 @@ def ocft_matrix(
     ==========
     nt : int
         Number of time samples.
+    dt : float
+        Sampling interval.
+        Default is 1, which means the sampling frequency is 1 Hz.
     factor : int
         Factor for the number of frequencies to be decomposed.
     decimation : int
@@ -480,7 +506,6 @@ def ocft(
     if Ai is None:
         Ai = np.linalg.pinv(A)
 
-    _info = None
     if factor == 1:  # DFT.
         x = A.conj().dot(y)
     else:
@@ -493,8 +518,9 @@ def ocft(
         result = basis_pursuit_admm(
             A, y, threshold,
             maxiter=maxiter, stepiter=stepiter, patience=patience,
-            Ai=Ai, info=info, device_kind=device_kind)
+            Ai=Ai, device_kind=device_kind)
         x = result.x
+
     if is_t:
         x = x.T
     if is_1d:
