@@ -16,10 +16,13 @@ subject to y = Ax
 ADMM solves this problem by the following iterations:
 
 ```Python
+# This is required once before iteration.
 A1 = A^T(A A^T)^(-1)  # pseudo inverse
-x = z - u + A1 @ (y - A @ (z - u))
-z = soft_threshold(x + u, threshold)
-u += x - z
+
+while not converged:
+    x = z - u + A1 @ (y - A @ (z - u))
+    z = soft_threshold(x + u, threshold)
+    u += x - z
 ```
 
 Methodologies are briefly explained in [doc/intro_cs.ipynb](doc/intro_cs.ipynb).
@@ -53,21 +56,21 @@ Import `bpadmm` Python package.
 
 from bpadmm import basis_pursuit_admm
 
-# n: The number of measurements in a single snapshot.
+# n: The number of measurements in A.
 # p: The number of parameters in A.
-# k: The number of snapshots.
+# k: The number of batches (snapshots).
 # A: 2-d matrix with the size (n, p).
-# y: 2-d matrix with the size (n, k).
-# x: 2-d matrix with the size (n, k).
+# y: 2-d matrix with the size (k, n).
+# x: 2-d matrix with the size (k, n).
 
 result = basis_pursuit_admm(
     A,  # Observation matrix.
-    y,  # Observation (measurement).
+    y,  # Measurement.
     threshold,  # Soft threshold.
 )
 
 # Suboptimal solusion
-result.x
+x = result.x
 
 ```
 
