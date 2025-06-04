@@ -17,9 +17,9 @@ def basis_pursuit_admm(
     patience: int = 10,
     Ai: np.ndarray = None,
     device_kind: str = None,
-    info: bool = False,
     atol: float = 1e-4,
     rtol: float = 1e-3,
+    init_x: np.ndarray | bool | None = None,
 ) -> 'BpADMMResult':
     """ADMM for basis pursuit problem.
 
@@ -91,12 +91,15 @@ def basis_pursuit_admm(
     else:
         A1 = jnp.array(Ai)
 
-    A = jax.device_put(A)
-    A1 = jax.device_put(A1)
-    y = jax.device_put(y)
-    x = jax.device_put(x)
-    z = jax.device_put(z)
-    u = jax.device_put(u)
+    if init_x is not None:
+        if isinstance(init_x, bool) and init_x:
+            # If init_x is True, use L2 guess.
+            x = jnp.array([A1 @ y1.reshape(-1, 1) for y1 in y]).squeeze(axis=-1)
+        else:
+            # If init_x is given, use it as the initial value.
+            x = jnp.array(init_x)
+        if x.shape != (nbatches, p):
+            raise ValueError(f"init_x shape {x.shape} does not match (nbatches, p) = {(nbatches, p)}.")
 
     def loop(y, state: State):
         """Main loop of the ADMM algorithm."""
@@ -104,7 +107,14 @@ def basis_pursuit_admm(
         def cond(state: State):
             "Stopping condition."
             # Stop if maximum iterations or no improvement in MSE for `patience` iterations.
-            return (state.i < maxiter) & (state.bad_count < patience) & jnp.logical_not(state.eval_subopt)
+            return (
+                (state.i < patience) |
+                (
+                    (state.i < maxiter) &
+                    (state.bad_count < patience) &
+                    jnp.logical_not(state.eval_subopt)
+                )
+            )
 
         def body(state: State):
             "Each step of the loop."
@@ -200,10 +210,10 @@ def basis_pursuit_admm(
             # Add small number of dummy tasks to make it divisible by n_devices
             nadd = ndevices - rem
             y = _extend(y, nadd)
-            state = jax.tree_map(lambda a: _extend(a, nadd), state)
+            state = jax.tree_util.tree_map(lambda a: _extend(a, nadd), state)
         # Split batches into devices.
         y = _split(y, ndevices)
-        state = jax.tree_map(lambda a: _split(a, ndevices), state)
+        state = jax.tree_util.tree_map(lambda a: _split(a, ndevices), state)
         # Distribute tasks to devices.
         state = jax.pmap(
             jax.vmap(loop, in_axes=(0, 0)),
@@ -211,9 +221,9 @@ def basis_pursuit_admm(
             devices=devices
         )(y, state)
         # Collect result from devices.
-        state = jax.tree_map(_merge, state)
+        state = jax.tree_util.tree_map(_merge, state)
         # Discard unnecessary part.
-        state = jax.tree_map(lambda a: a[:nbatches], state)
+        state = jax.tree_util.tree_map(lambda a: a[:nbatches], state)
 
     # Restore the best result.
     x = state.best_x
@@ -222,15 +232,22 @@ def basis_pursuit_admm(
         x = x.ravel()
 
     # Status of the method.
-    status = np.zeros(nbatches, dtype=int)  # Default status is 0: maximum iterations reached
-    status[state.eval_subopt] = 1  # Suboptimality reached
-    status[state.bad_count >= patience] = 2  # Early stopping due to no improvement
+    messages_dict = {
+        0: "Maximum iterations reached.",
+        1: "Suboptimality reached.",
+        2: "Early stopping due to no improvement."
+    }
+    status = np.zeros(nbatches, dtype=int)
+    status[state.eval_subopt] = 1
+    status[state.bad_count >= patience] = 2
+    messages = np.array([messages_dict[s] for s in status])
 
     # Return results.
     return BpADMMResult(
         x=x,
         status=status,
-        nit=state.i,
+        messages=messages,
+        nit=state.i - 1,
         state=state
     )
 
@@ -278,6 +295,9 @@ class BpADMMResult:
     1: suboptimality reached.
     2: Early stopping due to no improvement
     """
+    
+    messages: np.ndarray
+    "Description of the cause of termination for each batch."
 
     nit: int
     """Number of iterations performed for each batch."""
@@ -286,6 +306,19 @@ class BpADMMResult:
     """Raw state of the ADMM loop, containing various metrics and results.
     
     This is JAX's pytree."""
+    
+    def __str__(self):
+        return (
+            f"BpADMMResult(nit={self.nit}, "
+            f"status={self.status}, "
+            f"messages={self.messages})"
+        )
+
+    def __repr__(self):
+        lines = []
+        for ib, (status, nit, message) in enumerate(zip(self.status, self.nit, self.messages)):
+            lines.append(f"{ib:{width_batch}d} [{status:2d}] {nit:{width_nit}d}it: {message}")
+        return "\n".join(lines)
 
 
 @jax.tree_util.register_pytree_node_class
