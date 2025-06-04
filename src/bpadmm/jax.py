@@ -315,6 +315,8 @@ class BpADMMResult:
         )
 
     def __repr__(self):
+        width_batch = len(str(self.status.shape[0]))
+        width_nit = len(str(max(self.nit)))
         lines = []
         for ib, (status, nit, message) in enumerate(zip(self.status, self.nit, self.messages)):
             lines.append(f"{ib:{width_batch}d} [{status:2d}] {nit:{width_nit}d}it: {message}")
