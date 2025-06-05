@@ -3,6 +3,11 @@
 This is a Python library that implements a solver for the Compressed Sensing on underdetermined linear systems.
 The algorithm is based on the Basis Pursuit (BP) with Alternating Direction Method of Multipliers (ADMM).
 
+### Key features
+
+- Can run on (multiple) GPUs using JAX
+- Can applicable to problems that handles complex numbers
+
 ## Methodologies
 
 Basis pursuit problem is defined as following sparse modeling:
@@ -88,6 +93,14 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 ## Examples
 
 You can find some more examples under [test](./test) directory.
+
+### Overcomplete Fourier Transform
+
+Fourier transform with sparse modeling.
+
+- [test/test_ocft.py](test/test_ocft.py)
+
+![test_ocft](doc/ocft.png)
 
 ### Recovery rate 
 
