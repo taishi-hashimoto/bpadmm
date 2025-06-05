@@ -4,17 +4,14 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm.auto import tqdm
-from bpadmm import basis_pursuit_admm, cosine_decay_schedule
+from bpadmm import basis_pursuit_admm
 
 nseeds = 10  # Number of random seeds.
 p = 100  # Number of parameters of X.
 
 maxiter = 1000  # Maximum number of iterations.
-stepiter = 10  # Number of iterations for each step.
+stepiter = 100  # Number of iterations for each step.
 patience = 10  # Number of iterations for patience.
-
-# Cosine decay factor for the threshold.
-decay = cosine_decay_schedule(maxiter * stepiter, 1e-2, 1e-4)
 
 results = []
 with tqdm(total=nseeds * p) as pbar:
@@ -34,10 +31,12 @@ with tqdm(total=nseeds * p) as pbar:
             result = basis_pursuit_admm(
                 A,
                 y,
-                threshold=np.max(y) * decay,
+                threshold=np.linalg.norm(A, np.inf) * 1e-4,
                 maxiter=maxiter,
                 stepiter=stepiter,
                 patience=patience,
+                atol=1e-6,
+                rtol=1e-5,
             )
             mse = np.sum((result.x.real - x) ** 2, axis=-1)
             for i, s in enumerate(range(1, p + 1)):
@@ -96,7 +95,7 @@ plt.ylabel("No. observations")
 plt.tight_layout()
 # %%
 mse = np.reshape(df_ave["mse"].astype(float), [n, s])
-m = plt.imshow(mse, extent=(0, p, 0, p), origin="lower", vmax=1e-5)
+m = plt.imshow(mse, extent=(0, p, 0, p), origin="lower", vmax=1e-3)
 plt.colorbar(m, label="MSE (True)")
 plt.xlabel("No. non-zero elements")
 plt.ylabel("No. observations")
