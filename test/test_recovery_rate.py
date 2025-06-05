@@ -11,7 +11,7 @@ p = 100  # Number of parameters of X.
 
 maxiter = 1000  # Maximum number of iterations.
 stepiter = 100  # Number of iterations for each step.
-patience = 10  # Number of iterations for patience.
+patience = 20  # Number of iterations for patience.
 
 results = []
 with tqdm(total=nseeds * p) as pbar:
@@ -19,6 +19,7 @@ with tqdm(total=nseeds * p) as pbar:
         rng = np.random.default_rng(seed)
         for n in range(1, p + 1):  # Number of measurements.
             A = rng.normal(size=(n, p))  # Observation matrix.
+            Ai = np.linalg.pinv(A)  # Pseudo-inverse of A.
             x = []
             y = []
             for s in range(1, p + 1):  # Number of non-zero elements.
@@ -31,12 +32,13 @@ with tqdm(total=nseeds * p) as pbar:
             result = basis_pursuit_admm(
                 A,
                 y,
-                threshold=np.linalg.norm(A, np.inf) * 1e-4,
+                threshold=1e-4,
                 maxiter=maxiter,
                 stepiter=stepiter,
                 patience=patience,
-                atol=1e-6,
-                rtol=1e-5,
+                atol=1e-5,
+                rtol=1e-4,
+                Ai=Ai,
             )
             mse = np.sum((result.x.real - x) ** 2, axis=-1)
             for i, s in enumerate(range(1, p + 1)):
@@ -61,7 +63,7 @@ df_ave.sort_index(inplace=True)
 # Recovery rate
 recovery_rate = (
     df.groupby(["n", "s"])
-    .mse.aggregate(lambda x: (x < 1e-4).mean())
+    .mse.aggregate(lambda x: (x < 1e-3).mean())
     .values.reshape(n, s)
     * 100
 )

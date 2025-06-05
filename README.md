@@ -40,7 +40,11 @@ Methodologies are briefly explained in [doc/intro_cs.ipynb](doc/intro_cs.ipynb).
 - [numpy](https://pypi.org/project/numpy/)
 - [tqdm](https://pypi.org/project/tqdm/)
 
-Tests also need [matplotlib](https://pypi.org/project/matplotlib/) and [antarrlib](https://github.com/taishi-hashimoto/python-antarrlib).
+For tests:
+
+- [matplotlib](https://pypi.org/project/matplotlib/)
+- [pandas](https://pandas.pydata.org/)
+- [antarrlib](https://github.com/taishi-hashimoto/python-antarrlib).
 
 Optionally, you can setup GPUs if you have graphic cards to speed up the calculation.  
 Please refer to the [installation guide here](./INSTALL.md).
@@ -116,14 +120,16 @@ Fourier transform with sparse modeling.
 The number of non-zero elements vs. observations have a tradeoff for the perfect recovery rate of the original signal.
 This test tries to reproduce this characteristic curve with a very simple setting; a Gaussian random observation matrices and Gaussian random original signals.
 
-- [test/recovery_rate.py](test/recovery_rate.py)
+- [test/test_recovery_rate.py](test/test_recovery_rate.py)
 
 ![recovery_rate](doc/recovery_rate.png)
 
 ### Sparse modeling example in radar imaging
 
-- [test/radar_imaging.py](test/radar_imaging.py)  
+- [test/test_radar_imaging.py](test/test_radar_imaging.py)  
 
 |Nonadaptive beamforming                       |Sparse modeling                         |
 |----------------------------------------------|----------------------------------------|
 |![nonadaptive](doc/bpadmm_fourier_imaging.png)|![bpadmm](doc/bpadmm_sparse_imaging.png)|
+
+You can find some more examples under [test](./test) directory.
