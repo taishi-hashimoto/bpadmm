@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from bpadmm import basis_pursuit_admm
 from os.path import join, dirname
 
-N = 100  # The numner of parameters.
+N = 100  # The number of parameters.
 M = 50  # The number of observations.
 K = 10  # The number of non-zero elements.
 
