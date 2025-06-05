@@ -7,6 +7,7 @@ from os.path import join, dirname
 from bpadmm import ocft
 from antarrlib.decibel import dB
 
+rng = np.random.default_rng(42)
 
 N = 128
 factor = 50
@@ -28,7 +29,7 @@ pox = np.zeros(len(ot))
 
 xx = np.array([
     np.exp(1j*2*np.pi*f1*t) + np.exp(1j*(2*np.pi*f2*t + np.pi/2)) +
-    0.1 * (np.random.normal(size=len(t)) + 1j*np.random.normal(size=len(t)))
+    0.1 * (rng.normal(size=len(t)) + 1j*rng.normal(size=len(t)))
     for _ in range(50)])
 
 
@@ -38,11 +39,17 @@ ffttime += time() - now
 pfx = np.sum(np.abs(np.fft.fftshift(fx, axes=-1))**2, axis=0)
 
 now = time()
-ox, f, info = ocft(xx, factor, threshold=(0.1, 0.1), maxiter=1000, stepiter=100, patience=10, info=True, axis=-1, decimation=decimation, dt=1/K)
+ox, f, info = ocft(
+    xx, factor,
+    threshold=(0.1, 0.1),
+    maxiter=1000, stepiter=100, patience=10,
+    info=True,
+    axis=-1, decimation=decimation, dt=1/K,
+    rng=rng)
 ocftime += time() - now
 pox += np.sum(np.abs(ox)**2, axis=0)
 
-print(ffttime, ocftime)
+print(f"ffttime: {ffttime:.2g} s, ocftime: {ocftime:.2g} s")
 print(info)
 
 # %%
@@ -56,20 +63,20 @@ ax.grid()
 ax.plot(
     np.fft.fftshift(np.fft.fftfreq(N, 1/N)),
     dB(pfx, "max"),
-    ls="-", color="gray")
+    ls="-", color="gray", label="FFT")
 ax.set_ylim(ymin=dB(noi_pfx, np.max(pfx)) - 5)
 # ax.set_autoscale_on(False)
-ax.set_ylabel("Spectral Density [dB]")
-ax.set_xlabel("Freqeuncy [Hz]")
-fig.tight_layout()
+ax.xaxis.set_major_formatter("{x:.0f} Hz")
+ax.yaxis.set_major_formatter("{x:.0f} dB")
 ii = np.argsort(f)
 ax.plot(
     f[ii] / factor * decimation,
     dB(pox[ii], "max"),
-    ls="-", color="red")
-# ax.set_xlim(xmin=-25, xmax=25)
+    ls="-", color="red", label="OCFT")
+ax.legend()
+fig.tight_layout()
 
-fig.savefig(join(dirname(__file__), "bpadmm_dft.png"))
+fig.savefig(join(dirname(__file__), "ocft.png"))
 
 # %%
 state = info.state
