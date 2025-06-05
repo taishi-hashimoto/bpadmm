@@ -5,7 +5,6 @@ from os.path import join, dirname
 from antarrlib import freq2wlen, wlen2wnum, steering_vector, radial, dB
 from antarrlib.noise import noise
 from bpadmm import basis_pursuit_admm
-from bpadmm.reference import basis_pursuit_admm as basis_pursuit_admm_python
 import time
 
 
@@ -78,26 +77,15 @@ NITER = 10000
 t0 = time.time()
 result = basis_pursuit_admm(
     A, x, threshold=lambda_,
-    maxiter=NITER, stepiter=100, info=False)
-result = np.atleast_2d(result).T
+    maxiter=NITER, stepiter=100)
+x = result.x
+x = np.atleast_2d(x).T
 rstime = time.time() - t0
 
-t0 = time.time()
-result1 = []
-for ii in range(N):
-    y_ = x[ii, :, None]
-    x_ = basis_pursuit_admm_python(
-        A, y_, threshold=lambda_,
-        maxiter=NITER, miniter=1000,
-        xtol=tol, ftol=tol)
-    result1.append(x_.ravel())
-result1 = np.atleast_2d(result1).T
-pytime = time.time() - t0
-
-print(pytime, rstime)
+print(rstime)
 
 # %%
-yy = np.sum(np.abs(np.c_[result])**2, axis=-1)
+yy = np.sum(np.abs(np.c_[x])**2, axis=-1)
 yy[yy < 1e-4] = np.nan
 fig, ax = plt.subplots(subplot_kw=dict(projection="polar"), figsize=(12, 10))
 ax.set_rlim(0, 90)
