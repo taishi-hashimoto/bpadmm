@@ -94,6 +94,15 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 You can find some more examples under [test](./test) directory.
 
+### Simple basis pursuit
+
+- [test/test_simple.py](test/test_simple.py)  
+
+|Reconstruction result |Convergence check |
+|----------------------------------------------|----------------------------------------|
+|![result](doc/simple.png)|![convergence](doc/convergence.png)|
+
+
 ### Overcomplete Fourier Transform
 
 Fourier transform with sparse modeling.

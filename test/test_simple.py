@@ -37,7 +37,7 @@ fig.savefig(join(dirname(__file__), "simple.png"))
 # %% Check plot how computation went.
 # %%
 state = result.state
-fig, axes = plt.subplots(2, 2, figsize=(10, 3))
+fig, axes = plt.subplots(2, 2)
 ax = axes[0, 0]
 ax.set_yscale("log")
 ax.grid()
