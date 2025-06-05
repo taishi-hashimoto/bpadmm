@@ -131,5 +131,3 @@ This test tries to reproduce this characteristic curve with a very simple settin
 |Nonadaptive beamforming                       |Sparse modeling                         |
 |----------------------------------------------|----------------------------------------|
 |![nonadaptive](doc/bpadmm_fourier_imaging.png)|![bpadmm](doc/bpadmm_sparse_imaging.png)|
-
-You can find some more examples under [test](./test) directory.
