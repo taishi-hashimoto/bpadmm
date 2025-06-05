@@ -59,4 +59,5 @@ ax.grid()
 ax.plot(state.res_dual.T)
 ax.set_title("Dual Residual")
 fig.tight_layout()
+fig.savefig(join(dirname(__file__), "convergence.png"))
 # %%
