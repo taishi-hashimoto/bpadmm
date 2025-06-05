@@ -1,6 +1,5 @@
 "JAX implementation of Basis Pursuit by ADMM."
 import re
-from typing import Any
 from dataclasses import dataclass
 import numpy as np
 import jax
@@ -181,6 +180,7 @@ def basis_pursuit_admm(
             best_loss = jnp.where(is_improving_each, curr_loss, state.best_loss)
             best_x = jnp.where(is_improving_any, x, state.best_x)
             bad_count = jnp.where(is_improving_any, 0, state.bad_count + 1)
+
             # Update state
             return BpADMMState(
                 i=state.i + 1,
@@ -328,7 +328,8 @@ class BpADMMResult:
     state: 'BpADMMState'
     """Raw state of the ADMM loop, containing various metrics and results.
     
-    This is JAX's pytree."""
+    This is JAX's pytree.
+    """
     
     def __str__(self):
         return (
@@ -351,17 +352,29 @@ class BpADMMResult:
 class BpADMMState:
     "State of ADMM loop."
     i: int
+    "Current iteration index."
     x: jnp.ndarray
+    "Current solution vector."
     z: jnp.ndarray
+    "Current primal variable."
     u: jnp.ndarray
+    "Current dual variable."
     bad_count: int
+    "Number of consecutive iterations without improvement."
     best_loss: jnp.ndarray
+    "Best loss so far for each batch."
     best_x: jnp.ndarray
+    "Best solution vector so far for each batch."
     diff_x: jnp.ndarray
+    "Difference of the solution vector from the previous iteration for each batch."
     l1_norm: jnp.ndarray
+    "L1 norm of the solution vector for each batch."
     res_prim: jnp.ndarray
+    "Primal residual for each batch."
     res_dual: jnp.ndarray
-    eval_subopt: bool
+    "Dual residual for each batch."
+    eval_subopt: jnp.ndarray
+    "Whether the suboptimality condition is met for each batch."
 
     def tree_flatten(self):
         """Flatten the state for JAX tree utilities."""
