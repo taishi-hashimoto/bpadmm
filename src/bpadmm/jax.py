@@ -132,8 +132,8 @@ def basis_pursuit_admm(
             return (
                 (state.i < patience) |
                 (
-                    (state.i < maxiter) &
-                    (state.bad_count < patience) &
+                    (state.i <= maxiter) &
+                    (state.bad_count <= patience) &
                     jnp.logical_not(state.eval_subopt)
                 )
             )
