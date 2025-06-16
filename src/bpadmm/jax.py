@@ -19,7 +19,7 @@ def basis_pursuit_admm(
     init_x: np.ndarray | bool | None = None,
     device_kind: str = None,
 ) -> 'BpADMMResult':
-    """ADMM for basis pursuit problem.
+    """ADMM for basis pursuit (BP) problem.
 
     Basis pursuit problem is defined as following sparse modeling:
 
@@ -79,11 +79,39 @@ def basis_pursuit_admm(
         Regex pattern for target devices.
         Default is None, which will use all visible GPUs by default.
 
+    Notes
+    =====
+    For reliable results and convergence, correct scalings of `A`, `y`, and `threshold` are crucial.  
+    `A` should be normalized such that each column has unit norm, i.e.,
+    ```python
+    A /= np.linalg.norm(A, axis=0, keepdims=True)
+    ```
+
+    Also, to balance the norm of `A` and `Ai`, dividing `A` and `y` by the norm of `A` is recommended afterwards:
+    ```python
+    norm_A = np.linalg.norm(A)
+    A /= norm_A
+    y /= norm_A
+    ```
+    In this case, you don't need to scale the soft threshold according to A's norm, just use 0.1, 0.01, etc.  
+    Note `x` is also scaled by the same factor, so if absolute values of `x` matter:
+    ```python
+    result = basis_pursuit_admm(A, y, threshold=..., ...)
+    x = result.x * norm_A  # Restore original scale of x.
+    ```
+ 
     Returns
     =======
     BpADMMResult
         Result of the ADMM algorithm, containing the solution `x`, status, messages, and other metrics.
-        See `BpADMMResult` for details.
+        - `x`: Solution vector of the basis pursuit ADMM algorithm of shape `(b, p)`.
+        - `status`: Status of the algorithm for each batch, indicating convergence or failure.
+          0: Exceeded maximum iterations.
+          1: suboptimality reached.
+          2: Early stopping due to no improvement
+        - `messages`: Description of the cause of termination for each batch.
+        - `nit`: Number of iterations performed for each batch.
+        - `state`: Raw state of the BP-ADMM loop, containing various metrics and results.
     """
     n, p = A.shape
     ndims = np.ndim(y)
@@ -326,7 +354,7 @@ class BpADMMResult:
     """Number of iterations performed for each batch."""
     
     state: 'BpADMMState'
-    """Raw state of the ADMM loop, containing various metrics and results.
+    """Raw state of the BP-ADMM loop, containing various metrics and results.
     
     This is JAX's pytree.
     """

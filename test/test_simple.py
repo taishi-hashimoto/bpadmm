@@ -11,6 +11,8 @@ M = 50  # The number of observations.
 K = 10  # The number of non-zero elements.
 
 A = np.random.normal(size=(M, N))  # Observation matrix.
+A /= np.linalg.norm(A, axis=0)  # Normalize columns.
+A /= np.linalg.norm(A)  # Normalize norm.
 
 # Original signal.
 x0 = np.r_[np.random.normal(size=K), np.zeros(shape=N - K)]
@@ -60,4 +62,5 @@ ax.plot(state.res_dual.T)
 ax.set_title("Dual Residual")
 fig.tight_layout()
 fig.savefig(join(dirname(__file__), "convergence.png"))
+result
 # %%

@@ -67,12 +67,13 @@ fig.savefig(join(dirname(__file__), "bpadmm_fourier_imaging.png"))
 
 A = w.T
 y = x.T
-tol = 1e-7
 
-max_sigma = np.linalg.norm(A)
-lambda_ = 1e-4 * max_sigma
+norm_A = np.linalg.norm(A)
+A /= norm_A
+y /= norm_A
+lambda_ = 1e-2
 
-NITER = 10000
+NITER = 1000
 
 t0 = time.time()
 result = basis_pursuit_admm(
@@ -96,8 +97,34 @@ for power, (zenith, azimuth) in TARGETS:
     ax.plot(np.deg2rad(azimuth), zenith, "ro", mfc="none", ms=20)
 ax.set_facecolor("k")
 ax.set_rlim(0, 50)
-# ax.grid()
 fig.tight_layout()
 fig.savefig(join(dirname(__file__), "bpadmm_sparse_imaging.png"))
 
+# %%
+
+# %%
+state = result.state
+fig, axes = plt.subplots(2, 2, figsize=(10, 3))
+ax = axes[0, 0]
+ax.set_yscale("log")
+ax.grid()
+ax.plot(state.diff_x.T)
+ax.set_title("Convergence of x")
+ax = axes[0, 1]
+ax.set_yscale("log")
+ax.grid()
+ax.plot(state.l1_norm.T)
+ax.set_title("Convergence of l1")
+ax = axes[1, 0]
+ax.set_yscale("log")
+ax.grid()
+ax.plot(state.res_prim.T)
+ax.set_title("Primal Residual")
+ax = axes[1, 1]
+ax.set_yscale("log")
+ax.grid()
+ax.plot(state.res_dual.T)
+ax.set_title("Dual Residual")
+fig.tight_layout()
+result
 # %%
