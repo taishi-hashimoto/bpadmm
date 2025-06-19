@@ -119,13 +119,23 @@ def basis_pursuit_admm(
     nbatches, n_ = y.shape
     assert n_ == n, f"A.shape = {A.shape}, y.shape = {y.shape}, y.shape[1] = {n_} != A.shape[0] = {n}"
 
+    devices = jax.devices()
+    if device_kind is not None:
+        devices = [d for d in devices if re.match(device_kind, d.device_kind, re.IGNORECASE)]    
+    ndevices = len(devices)
+
+    batches_per_device = max(1, nbatches // ndevices)
+
     if isinstance(threshold, float):
         # If threshold is a float, create an array of the same size as the number of iterations.
-        threshold = jnp.full((maxiter * stepiter,), threshold, dtype=jnp.float32)
+        threshold = jnp.full((maxiter,), threshold, dtype=jnp.float32)
     else:
         # If threshold is an array, it should have the same size as the number of iterations.
-        threshold = jnp.array(threshold, dtype=jnp.float32)
-        assert threshold.shape == (maxiter * stepiter,), f"Threshold {threshold.shape} does not match the total iteration number {(maxiter * stepiter,)}."
+        threshold = np.atleast_2d(threshold)
+        if threshold.shape == (1, maxiter):
+            # If threshold is a 2D array with one row, repeat it for each batch.
+            threshold = jnp.repeat(threshold, nbatches, axis=0)
+        assert threshold.shape == (nbatches, maxiter,), f"Threshold {threshold.shape} does not match the total iteration number {(nbatches, maxiter,)}."
 
     # Initialization.
     A = jnp.array(A)
@@ -169,13 +179,15 @@ def basis_pursuit_admm(
         def body(state: BpADMMState):
             "Each step of the loop."
 
+            # Unique batch ID for threshold indexing.
+            batch_id = jax.lax.axis_index('device') * batches_per_device + jax.lax.axis_index('batch')
+
             def admm(i, val):
                 "ADMM single step."
-                j = state.i * stepiter + i
                 x, z, u = val
                 v = z - u
                 x = v + A1 @ (y - A @ v)
-                z = soft_threshold(x + u, threshold[j])
+                z = soft_threshold(x + u, threshold[batch_id, state.i])
                 u = u + x - z
                 return x, z, u
 
@@ -211,6 +223,7 @@ def basis_pursuit_admm(
 
             # Update state
             return BpADMMState(
+                batch_id=batch_id,
                 i=state.i + 1,
                 x=x,
                 z=z,
@@ -228,13 +241,9 @@ def basis_pursuit_admm(
         # Run the whole loop.
         return jax.lax.while_loop(cond, body, state)
 
-    devices = jax.devices()
-    if device_kind is not None:
-        devices = [d for d in devices if re.match(device_kind, d.device_kind, re.IGNORECASE)]    
-    ndevices = len(devices)
-
     # Initialize state
     state = BpADMMState(
+        batch_id=jnp.zeros((nbatches,), dtype=int),  # Batch ID for each
         i=jnp.zeros(nbatches, dtype=int),
         x=x,  # shape (nbatches, p)
         z=z,
@@ -251,9 +260,11 @@ def basis_pursuit_admm(
 
     # Run the loop.
     if ndevices == 1 or nbatches == 1:  # Use vmap
-        state = jax.vmap(loop, in_axes=(0, 0))(y, state)
+        state = jax.vmap(
+            jax.vmap(loop, in_axes=(0, 0), axis_name="batch"),
+            axis_name="device",
+        )(y, state)
     else:  # Use pmap
-        batches_per_device = nbatches // ndevices
         rem = nbatches - batches_per_device * ndevices
         nadd = 0
         if rem != 0:
@@ -266,8 +277,8 @@ def basis_pursuit_admm(
         state = jax.tree_util.tree_map(lambda a: _split(a, ndevices), state)
         # Distribute tasks to devices.
         state = jax.pmap(
-            jax.vmap(loop, in_axes=(0, 0)),
-            axis_name="batch",
+            jax.vmap(loop, in_axes=(0, 0), axis_name="batch"),
+            axis_name="device",
             devices=devices
         )(y, state)
         # Collect result from devices.
@@ -294,10 +305,10 @@ def basis_pursuit_admm(
 
     # Return results.
     return BpADMMResult(
-        x=x,
+        x=np.array(x),
         status=status,
         messages=messages,
-        nit=state.i - 1,
+        nit=np.array(state.i) - 1,
         state=state
     )
 
@@ -350,7 +361,7 @@ class BpADMMResult:
     messages: np.ndarray
     "Description of the cause of termination for each batch."
 
-    nit: int
+    nit: np.ndarray
     """Number of iterations performed for each batch."""
     
     state: 'BpADMMState'
@@ -379,7 +390,10 @@ class BpADMMResult:
 @dataclass
 class BpADMMState:
     "State of ADMM loop."
-    i: int
+
+    batch_id: jnp.ndarray
+    "Unique identifier for the batch, used for debugging and tracking."
+    i: jnp.ndarray
     "Current iteration index."
     x: jnp.ndarray
     "Current solution vector."
@@ -387,12 +401,14 @@ class BpADMMState:
     "Current primal variable."
     u: jnp.ndarray
     "Current dual variable."
-    bad_count: int
+
+    bad_count: jnp.ndarray
     "Number of consecutive iterations without improvement."
     best_loss: jnp.ndarray
     "Best loss so far for each batch."
     best_x: jnp.ndarray
     "Best solution vector so far for each batch."
+
     diff_x: jnp.ndarray
     "Difference of the solution vector from the previous iteration for each batch."
     l1_norm: jnp.ndarray
@@ -401,16 +417,18 @@ class BpADMMState:
     "Primal residual for each batch."
     res_dual: jnp.ndarray
     "Dual residual for each batch."
+
     eval_subopt: jnp.ndarray
     "Whether the suboptimality condition is met for each batch."
 
     def tree_flatten(self):
         """Flatten the state for JAX tree utilities."""
         children = (
+            self.batch_id,
             self.i, self.x, self.z, self.u,
             self.bad_count, self.best_loss,
             self.best_x, self.diff_x, self.l1_norm, self.res_prim, self.res_dual,
-            self.eval_subopt
+            self.eval_subopt,
         )
         aux_data = None
         return children, aux_data

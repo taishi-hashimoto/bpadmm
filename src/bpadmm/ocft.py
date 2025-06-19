@@ -115,7 +115,7 @@ def ocft(
         elif isinstance(threshold, tuple):
             thr_min, thr_max = threshold
             threshold = cosine_decay_schedule(
-                maxiter * stepiter, thr_beg=thr_max, thr_end=thr_min)
+                maxiter, thr_beg=thr_max, thr_end=thr_min)
         result = basis_pursuit_admm(
             A, y, threshold,
             maxiter=maxiter, stepiter=stepiter, patience=patience,
