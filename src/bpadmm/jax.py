@@ -53,7 +53,7 @@ def basis_pursuit_admm(
     threshold: float
         Soft threshold, or the step size for update in ADMM.
         If an array is given, each element is used for each step of ADMM.
-        In that case, it should have the same size as `maxiter * stepiter`.
+        In that case, it should have the same size as `maxiter`.
     maxiter: int
         Maximum number of evaluation of the terminate condition.
     stepiter: int
