@@ -132,7 +132,7 @@ def basis_pursuit_admm(
         threshold = jnp.full((maxiter,), threshold, dtype=jnp.float32)
     else:
         # If threshold is an array, it should have the same size as the number of iterations.
-        threshold = np.atleast_2d(threshold)
+        threshold = jnp.atleast_2d(threshold)
         if threshold.shape == (1, maxiter):
             # If threshold is a 2D array with one row, repeat it for each batch.
             threshold = jnp.repeat(threshold, nbatches, axis=0)
@@ -327,7 +327,7 @@ def cosine_decay_schedule(
     total_steps: int,
     thr_beg: float | ArrayLike = 1.0,
     thr_end: float | ArrayLike = 0.0
-) -> jnp.ndarray:
+) -> np.ndarray:
     """Cosine decay soft threshold schedule.
     
     Parameters
@@ -343,7 +343,7 @@ def cosine_decay_schedule(
 
     Returns
     -------
-    jnp.ndarray
+    np.ndarray
         Soft threshold schedule of shape (total_steps,), or (batch_size, total_steps) if thr_beg and thr_end are arrays.
     """
     thr_beg = np.atleast_1d(thr_beg)
@@ -355,7 +355,7 @@ def cosine_decay_schedule(
     steps = np.arange(total_steps)
     cosine_decay = 0.5 * (1 + np.cos(np.pi * steps / total_steps))
     learning_rates = thr_end + (thr_beg - thr_end) * cosine_decay
-    return jnp.array(learning_rates)
+    return learning_rates
 
 
 @dataclass
