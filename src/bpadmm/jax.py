@@ -2,22 +2,23 @@
 import re
 from dataclasses import dataclass
 import numpy as np
+from numpy.typing import ArrayLike
 import jax
 import jax.numpy as jnp
 
 
 def basis_pursuit_admm(
-    A: np.ndarray,
-    y: np.ndarray,
-    threshold: float | np.ndarray,
+    A: ArrayLike,
+    y: ArrayLike,
+    threshold: float | ArrayLike,
     maxiter: int = 1000,
     stepiter: int = 100,
     patience: int = 10,
-    Ai: np.ndarray = None,
+    Ai: ArrayLike | None = None,
     atol: float = 1e-4,
     rtol: float = 1e-3,
-    init_x: np.ndarray | bool | None = None,
-    device_kind: str = None,
+    init_x: ArrayLike | bool | None = None,
+    device_kind: str | None = None,
 ) -> 'BpADMMResult':
     """ADMM for basis pursuit (BP) problem.
 
@@ -113,11 +114,11 @@ def basis_pursuit_admm(
         - `nit`: Number of iterations performed for each batch.
         - `state`: Raw state of the BP-ADMM loop, containing various metrics and results.
     """
-    n, p = A.shape
+    n, p = np.shape(A)
     ndims = np.ndim(y)
     y = np.atleast_2d(y)
     nbatches, n_ = y.shape
-    assert n_ == n, f"A.shape = {A.shape}, y.shape = {y.shape}, y.shape[1] = {n_} != A.shape[0] = {n}"
+    assert n_ == n, f"A.shape = {(n, p)}, y.shape = {y.shape}, y.shape[1] = {n_} != A.shape[0] = {n}"
 
     devices = jax.devices()
     if device_kind is not None:
@@ -313,7 +314,7 @@ def basis_pursuit_admm(
     )
 
 
-def soft_threshold(x: jnp.ndarray, threshold: float) -> jnp.ndarray:
+def soft_threshold(x: jnp.ndarray, threshold: float | jnp.ndarray) -> jnp.ndarray:
     """Soft thresholding function for JAX.
 
     This also works for complex inputs.
@@ -322,27 +323,39 @@ def soft_threshold(x: jnp.ndarray, threshold: float) -> jnp.ndarray:
     return a / (a + threshold) * x
 
 
-def cosine_decay_schedule(total_steps, thr_beg=1.0, thr_end=0.0):
+def cosine_decay_schedule(
+    total_steps: int,
+    thr_beg: float | ArrayLike = 1.0,
+    thr_end: float | ArrayLike = 0.0
+) -> jnp.ndarray:
     """Cosine decay soft threshold schedule.
     
     Parameters
     ----------
     total_steps : int
         Total number of steps (iterations).
-    thr_beg : float
+    thr_beg : float | ArrayLike
         Initial soft threshold (maximum).
-    thr_end : float
+        If an array is given, the length must be (batch_size,).
+    thr_end : float | ArrayLike
         Final soft threshold (minimum).
-        
+        If an array is given, the length must be (batch_size,).
+
     Returns
     -------
     jnp.ndarray
-        Soft threshold schedule of shape (total_steps,).
+        Soft threshold schedule of shape (total_steps,), or (batch_size, total_steps) if thr_beg and thr_end are arrays.
     """
-    steps = jnp.arange(total_steps)
-    cosine_decay = 0.5 * (1 + jnp.cos(jnp.pi * steps / total_steps))
+    thr_beg = np.atleast_1d(thr_beg)
+    thr_end = np.atleast_1d(thr_end)
+    if thr_beg.size > 1 or thr_end.size > 1:
+        # Reshape input for batch processing.
+        thr_beg = np.reshape(thr_beg, (-1, 1))
+        thr_end = np.reshape(thr_end, (-1, 1))
+    steps = np.arange(total_steps)
+    cosine_decay = 0.5 * (1 + np.cos(np.pi * steps / total_steps))
     learning_rates = thr_end + (thr_beg - thr_end) * cosine_decay
-    return learning_rates
+    return jnp.array(learning_rates)
 
 
 @dataclass
