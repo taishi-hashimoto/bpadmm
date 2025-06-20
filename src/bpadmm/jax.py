@@ -323,41 +323,6 @@ def soft_threshold(x: jnp.ndarray, threshold: float | jnp.ndarray) -> jnp.ndarra
     return a / (a + threshold) * x
 
 
-def cosine_decay_schedule(
-    total_steps: int,
-    thr_beg: float | ArrayLike = 1.0,
-    thr_end: float | ArrayLike = 0.0
-) -> np.ndarray:
-    """Cosine decay soft threshold schedule.
-    
-    Parameters
-    ----------
-    total_steps : int
-        Total number of steps (iterations).
-    thr_beg : float | ArrayLike
-        Initial soft threshold (maximum).
-        If an array is given, the length must be (batch_size,).
-    thr_end : float | ArrayLike
-        Final soft threshold (minimum).
-        If an array is given, the length must be (batch_size,).
-
-    Returns
-    -------
-    np.ndarray
-        Soft threshold schedule of shape (total_steps,), or (batch_size, total_steps) if thr_beg and thr_end are arrays.
-    """
-    thr_beg = np.atleast_1d(thr_beg)
-    thr_end = np.atleast_1d(thr_end)
-    if thr_beg.size > 1 or thr_end.size > 1:
-        # Reshape input for batch processing.
-        thr_beg = np.reshape(thr_beg, (-1, 1))
-        thr_end = np.reshape(thr_end, (-1, 1))
-    steps = np.arange(total_steps)
-    cosine_decay = 0.5 * (1 + np.cos(np.pi * steps / total_steps))
-    learning_rates = thr_end + (thr_beg - thr_end) * cosine_decay
-    return learning_rates
-
-
 @dataclass
 class BpADMMResult:
     x: np.ndarray
