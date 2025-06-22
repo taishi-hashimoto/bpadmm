@@ -129,11 +129,11 @@ def basis_pursuit_admm(
 
     if isinstance(threshold, float):
         # If threshold is a float, create an array of the same size as the number of iterations.
-        threshold = jnp.full((maxiter,), threshold, dtype=jnp.float32)
+        threshold = jnp.full((nbatches, maxiter,), threshold, dtype=jnp.float32)
     else:
         # If threshold is an array, it should have the same size as the number of iterations.
         threshold = jnp.atleast_2d(threshold)
-        if threshold.shape == (1, maxiter):
+        if threshold.shape[0] == 1:
             # If threshold is a 2D array with one row, repeat it for each batch.
             threshold = jnp.repeat(threshold, nbatches, axis=0)
         assert threshold.shape == (nbatches, maxiter,), f"Threshold {threshold.shape} does not match the total iteration number {(nbatches, maxiter,)}."
