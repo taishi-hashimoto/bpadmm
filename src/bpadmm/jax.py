@@ -263,7 +263,7 @@ def basis_pursuit_admm(
     if ndevices == 1 or nbatches == 1:  # Use vmap
         state = jax.vmap(
             loop, in_axes=(0, 0, 0), axis_name="batch"
-        )(y, state, jnp.zeros(batches_per_device, dtype=int))
+        )(y, state, jnp.full(ndevices, 0, dtype=int))
     else:  # Use pmap
         rem = nbatches - batches_per_device * ndevices
         nadd = 0
@@ -280,10 +280,10 @@ def basis_pursuit_admm(
             device_ids[i, :] = i
         # Distribute tasks to devices.
         state = jax.pmap(
-            jax.vmap(loop, in_axes=(0, 0, 0), axis_name="batch"),
+            jax.vmap(loop, in_axes=(0, 0), axis_name="batch"),
             axis_name="device",
             devices=devices
-        )(y, state, jnp.array(device_ids))
+        )(y, state)
         # Collect result from devices.
         state = jax.tree_util.tree_map(_merge, state)
         # Discard unnecessary part.
