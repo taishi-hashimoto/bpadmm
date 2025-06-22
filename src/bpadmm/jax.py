@@ -162,7 +162,7 @@ def basis_pursuit_admm(
         except Exception as e:
             raise ValueError(f"init_x shape {x.shape} does not match (nbatches, p) = {(nbatches, p)}.") from e
 
-    def loop(y, state: BpADMMState):
+    def loop(y, state: BpADMMState, device_id: int):
         """Main loop of the ADMM algorithm."""
 
         def cond(state: BpADMMState):
@@ -181,7 +181,7 @@ def basis_pursuit_admm(
             "Each step of the loop."
 
             # Unique batch ID for threshold indexing.
-            batch_id = jax.lax.axis_index('device') * batches_per_device + jax.lax.axis_index('batch')
+            batch_id = device_id * batches_per_device + jax.lax.axis_index('batch')
 
             def admm(i, val):
                 "ADMM single step."
@@ -262,9 +262,8 @@ def basis_pursuit_admm(
     # Run the loop.
     if ndevices == 1 or nbatches == 1:  # Use vmap
         state = jax.vmap(
-            jax.vmap(loop, in_axes=(0, 0), axis_name="batch"),
-            axis_name="device",
-        )(y, state)
+            loop, in_axes=(0, 0, 0), axis_name="batch"
+        )(y, state, jnp.zeros(batches_per_device, dtype=int))
     else:  # Use pmap
         rem = nbatches - batches_per_device * ndevices
         nadd = 0
@@ -276,12 +275,15 @@ def basis_pursuit_admm(
         # Split batches into devices.
         y = _split(y, ndevices)
         state = jax.tree_util.tree_map(lambda a: _split(a, ndevices), state)
+        device_ids = np.empty_like(y, dtype=int)
+        for i in range(ndevices):
+            device_ids[i, :] = i
         # Distribute tasks to devices.
         state = jax.pmap(
-            jax.vmap(loop, in_axes=(0, 0), axis_name="batch"),
+            jax.vmap(loop, in_axes=(0, 0, 0), axis_name="batch"),
             axis_name="device",
             devices=devices
-        )(y, state)
+        )(y, state, jnp.array(device_ids))
         # Collect result from devices.
         state = jax.tree_util.tree_map(_merge, state)
         # Discard unnecessary part.
