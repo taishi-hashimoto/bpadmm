@@ -272,18 +272,21 @@ def basis_pursuit_admm(
             nadd = ndevices - rem
             y = _extend(y, nadd)
             state = jax.tree_util.tree_map(lambda a: _extend(a, nadd), state)
+        # Device IDs for each batch.
+        device_ids = np.empty(y.shape[0], dtype=int)
+        nbatches_ = len(device_ids) // ndevices
+        for i in range(ndevices):
+            device_ids[nbatches_*i:nbatches_*(i+1)] = i
         # Split batches into devices.
         y = _split(y, ndevices)
         state = jax.tree_util.tree_map(lambda a: _split(a, ndevices), state)
-        device_ids = np.empty_like(y, dtype=int)
-        for i in range(ndevices):
-            device_ids[i, :] = i
+        device_ids = _split(device_ids, ndevices)
         # Distribute tasks to devices.
         state = jax.pmap(
-            jax.vmap(loop, in_axes=(0, 0), axis_name="batch"),
+            jax.vmap(loop, in_axes=(0, 0, 0), axis_name="batch"),
             axis_name="device",
-            devices=devices
-        )(y, state)
+            devices=devices,
+        )(y, state, device_ids)
         # Collect result from devices.
         state = jax.tree_util.tree_map(_merge, state)
         # Discard unnecessary part.
